@@ -16,8 +16,17 @@ type parser struct {
 // parser ready to consume the stream. The final EOF token is retained.
 func newParser(src []byte) *parser {
 	l := NewLexer(src, "")
-	var toks []Token
-	for {
+	toks := make([]Token, 0, len(src)/3+8) // rough capacity hint; minimise re-alloc
+	// Hard progress bound: every non-EOF token consumes >=1 source byte, so the
+	// total number of Next() calls cannot exceed len(src)+1. The cap is a
+	// belt-and-suspenders against a lexer that ever fails to advance — without it
+	// such a bug would build an unbounded token slice and exhaust memory.
+	maxIters := len(src)*2 + 16
+	for iters := 0; ; iters++ {
+		if iters > maxIters {
+			toks = append(toks, Token{Kind: EOF})
+			break
+		}
 		tok := l.Next()
 		if tok.Kind == COMMENT {
 			continue
@@ -78,6 +87,19 @@ func (p *parser) expect(k Kind) Token {
 	}
 	p.errs = append(p.errs, fmt.Errorf("%v: expected %v, got %v %q", tok.Pos, k, tok.Kind, tok.Lit))
 	return tok
+}
+
+// ensureProgress guarantees a parsing loop makes forward progress: if the token
+// index has not advanced past start (and we are not at EOF), it records a
+// recovery error and force-advances one token. Every loop that calls a
+// sub-parser which could consume zero tokens on malformed input MUST call this,
+// so the parser can never spin (which would grow errs unbounded and OOM).
+func (p *parser) ensureProgress(start int, where string) {
+	if p.i == start && !p.at(EOF) {
+		t := p.cur()
+		p.errs = append(p.errs, fmt.Errorf("%v: skipping unexpected %v %q in %s", t.Pos, t.Kind, t.Lit, where))
+		p.advance()
+	}
 }
 
 // isBinaryOp reports whether kind k is one of the P1a binary operator tokens.
@@ -173,30 +195,30 @@ func (p *parser) parseParen() Expr {
 	pos := open.Pos
 
 	// Collect inner tokens at any nesting depth, stopping at the matching ')'.
+	// advance() moves on every iteration (or returns the retained EOF, caught by
+	// the guard), so this loop always terminates.
 	depth := 1
-	var parts []string
+	var b strings.Builder
 	for depth > 0 && !p.at(EOF) {
 		tok := p.advance()
-		switch tok.Kind {
-		case LPAREN:
+		if tok.Kind == LPAREN {
 			depth++
-		case RPAREN:
+		} else if tok.Kind == RPAREN {
 			depth--
 			if depth == 0 {
-				// This was the closing paren — don't include it.
-				goto done
+				break // closing paren — not included
 			}
 		}
-		// Represent each token by its literal text if available, else its kind string.
 		text := tok.Lit
 		if text == "" {
 			text = tok.Kind.String()
 		}
-		parts = append(parts, text)
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(text)
 	}
-done:
-	inner := strings.Join(parts, " ")
-	return &Paren{P: pos, X: &Lit{P: pos, Text: inner}}
+	return &Paren{P: pos, X: &Lit{P: pos, Text: b.String()}}
 }
 
 // ParseFile parses a complete VHDL design file: optional context clauses
@@ -230,6 +252,7 @@ func (p *parser) ParseFile() *DesignFile {
 
 	// Design units
 	for !p.at(EOF) {
+		start := p.i
 		switch p.cur().Kind {
 		case PACKAGE:
 			// Peek: PACKAGE BODY → deferred
@@ -256,6 +279,7 @@ func (p *parser) ParseFile() *DesignFile {
 			p.errs = append(p.errs, fmt.Errorf("%v: unexpected token %v %q at top level", p.cur().Pos, p.cur().Kind, p.cur().Lit))
 			return df
 		}
+		p.ensureProgress(start, "design unit")
 	}
 	return df
 }
@@ -303,10 +327,12 @@ func (p *parser) parsePackageDecl() *PackageDecl {
 
 	var decls []Decl
 	for !p.at(END) && !p.at(EOF) {
+		start := p.i
 		d := p.parseDecl()
 		if d != nil {
 			decls = append(decls, d)
 		}
+		p.ensureProgress(start, "package declaration")
 	}
 	p.expect(END)
 	p.accept(PACKAGE)
@@ -318,10 +344,31 @@ func (p *parser) parsePackageDecl() *PackageDecl {
 	return &PackageDecl{P: pos, Name: name, Decls: decls}
 }
 
-// parseEntityDecl is a placeholder — entity parsing is implemented in the next task.
+// parseEntityDecl parses: ENTITY name IS [GENERIC(...);] [PORT(...);] END [ENTITY] [name] ;
 func (p *parser) parseEntityDecl() *EntityDecl {
-	p.errs = append(p.errs, fmt.Errorf("%v: P1a: entity declaration not yet parsed", p.cur().Pos))
-	return nil
+	pos := p.expect(ENTITY).Pos
+	name := p.expect(IDENT).Lit
+	p.expect(IS)
+
+	var generics, ports []*InterfaceDecl
+	if p.at(GENERIC) {
+		p.advance() // consume GENERIC
+		generics = p.parseInterfaceList()
+		p.expect(SEMICOLON)
+	}
+	if p.at(PORT) {
+		p.advance() // consume PORT
+		ports = p.parseInterfaceList()
+		p.expect(SEMICOLON)
+	}
+
+	p.expect(END)
+	p.accept(ENTITY)
+	if p.at(IDENT) {
+		p.advance()
+	}
+	p.expect(SEMICOLON)
+	return &EntityDecl{P: pos, Name: name, Generics: generics, Ports: ports}
 }
 
 // parseDecl dispatches to the appropriate declaration parser.
@@ -396,11 +443,13 @@ func (p *parser) parseTypeDecl() *TypeDecl {
 		rpos := p.advance().Pos // consume RECORD
 		var fields []RecordField
 		for !p.at(END) && !p.at(EOF) {
+			start := p.i
 			names := p.parseNameList()
 			p.expect(COLON)
 			mark, constraint := p.parseSubtypeIndication()
 			p.expect(SEMICOLON)
 			fields = append(fields, RecordField{Names: names, SubtypeMark: mark, Constraint: constraint})
+			p.ensureProgress(start, "record field")
 		}
 		p.expect(END)
 		p.accept(RECORD)

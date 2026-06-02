@@ -1,6 +1,9 @@
 package vhdl
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func mustParseExpr(t *testing.T, src string) Expr {
 	t.Helper()
@@ -66,5 +69,43 @@ func TestParseDecls(t *testing.T) {
 	}
 	if cm, ok := ds[3].(*ComponentDecl); !ok || len(cm.Ports) != 2 {
 		t.Fatal("component")
+	}
+}
+
+func TestParseEntity(t *testing.T) {
+	p := newParser([]byte(`
+entity cpu is
+  generic (W : integer := 32);
+  port (
+    clk : in  std_logic;
+    d   : out std_logic_vector(W-1 downto 0));
+end entity cpu;`))
+	f := p.ParseFile()
+	if len(p.errs) != 0 {
+		t.Fatalf("errs: %v", p.errs)
+	}
+	e := f.Units[0].(*EntityDecl)
+	if e.Name != "cpu" || len(e.Generics) != 1 || len(e.Ports) != 2 {
+		t.Fatalf("%#v", e)
+	}
+	if e.Ports[1].Mode != "out" || e.Ports[1].SubtypeMark != "std_logic_vector" {
+		t.Fatal("port shape")
+	}
+}
+
+func TestDeferredUnitTagged(t *testing.T) {
+	p := newParser([]byte("architecture a of e is\nbegin\nend architecture;"))
+	p.ParseFile()
+	if len(p.errs) == 0 {
+		t.Fatal("expected a deferred-unit error")
+	}
+	found := false
+	for _, e := range p.errs {
+		if strings.Contains(e.Error(), "P1a") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want a P1a-tagged deferred error, got %v", p.errs)
 	}
 }
