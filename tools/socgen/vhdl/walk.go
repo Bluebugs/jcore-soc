@@ -68,6 +68,17 @@ func Walk(v Visitor, node Node) {
 				Walk(v, c.Cond)
 			}
 		}
+	case *InstantiationStmt:
+		for _, e := range n.GenericMap {
+			Walk(v, e)
+		}
+		for _, e := range n.PortMap {
+			Walk(v, e)
+		}
+	case *AssocElement:
+		if n.Actual != nil {
+			Walk(v, n.Actual)
+		}
 
 	// declarations
 	case *ConstantDecl:

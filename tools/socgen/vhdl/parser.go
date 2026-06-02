@@ -545,15 +545,31 @@ func (p *parser) parseConcurrentStmt() Stmt {
 		label = p.advance().Lit
 		p.advance() // consume COLON
 	}
-	// statements introduced by a keyword (process/generate/block/...) or a
-	// labelled instantiation (entity/component/configuration) are deferred here.
+	// statements introduced by a keyword (process/generate/block/...) are
+	// deferred here; entity/component/configuration dispatch to instantiation.
 	switch p.cur().Kind {
-	case PROCESS, GENERATE, BLOCK, ENTITY, COMPONENT, CONFIGURATION, FOR, IF, ASSERT, WITH, POSTPONED:
+	case PROCESS, GENERATE, BLOCK, FOR, IF, ASSERT, WITH, POSTPONED:
 		p.errorf(p.cur().Pos, "deferred: %v concurrent statement not yet parsed", p.cur().Kind)
 		return nil
+	case ENTITY:
+		p.advance()
+		unit := p.parseDottedName()
+		arch := ""
+		if p.at(LPAREN) {
+			p.advance()
+			arch = p.expect(IDENT).Lit
+			p.expect(RPAREN)
+		}
+		return p.finishInstantiation(pos, label, ENTITY, unit, arch)
+	case COMPONENT:
+		p.advance()
+		return p.finishInstantiation(pos, label, COMPONENT, p.parseDottedName(), "")
+	case CONFIGURATION:
+		p.advance()
+		return p.finishInstantiation(pos, label, CONFIGURATION, p.parseDottedName(), "")
 	}
 	// otherwise: a name. If `<=` follows, it's a simple concurrent signal
-	// assignment; otherwise defer (instantiation etc. — later tasks).
+	// assignment; otherwise it may be a bare component instantiation.
 	target := p.parseName()
 	if p.at(LE) {
 		p.advance() // consume '<='
@@ -561,8 +577,59 @@ func (p *parser) parseConcurrentStmt() Stmt {
 		p.expect(SEMICOLON)
 		return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Waveform: wave}
 	}
+	// Bare component instantiation: `label : comp_name [generic map][port map] ;`.
+	// Only valid with a label and a simple name; otherwise defer.
+	if label != "" {
+		if id, ok := target.(*Ident); ok {
+			return p.finishInstantiation(pos, label, 0, id.Name, "")
+		}
+	}
 	p.errorf(p.cur().Pos, "deferred: concurrent statement not yet parsed")
 	return nil
+}
+
+// finishInstantiation parses the optional generic/port maps and the terminating
+// semicolon of an instantiation statement.
+func (p *parser) finishInstantiation(pos Pos, label string, kind Kind, unit, arch string) Stmt {
+	var gmap, pmap []*AssocElement
+	if p.at(GENERIC) {
+		p.advance()
+		p.expect(MAP)
+		gmap = p.parseAssocList()
+	}
+	if p.at(PORT) {
+		p.advance()
+		p.expect(MAP)
+		pmap = p.parseAssocList()
+	}
+	p.expect(SEMICOLON)
+	return &InstantiationStmt{P: pos, Label: label, UnitKind: kind, Unit: unit, Arch: arch, GenericMap: gmap, PortMap: pmap}
+}
+
+// parseAssocList parses `( element {, element} )`.
+func (p *parser) parseAssocList() []*AssocElement {
+	p.expect(LPAREN)
+	var elems []*AssocElement
+	if !p.at(RPAREN) {
+		elems = append(elems, p.parseAssocElement())
+		for p.accept(COMMA) { // each iteration consumes the comma -> always advances
+			elems = append(elems, p.parseAssocElement())
+		}
+	}
+	p.expect(RPAREN)
+	return elems
+}
+
+// parseAssocElement parses `[formal =>] actual`. It parses an expression first;
+// if `=>` follows, that expression was the formal (rendered to canonical text).
+func (p *parser) parseAssocElement() *AssocElement {
+	pos := p.cur().Pos
+	first := p.parseExpr()
+	if p.at(ARROW) {
+		p.advance() // consume '=>'
+		return &AssocElement{P: pos, Formal: exprString(first), Actual: p.parseExpr()}
+	}
+	return &AssocElement{P: pos, Actual: first} // positional
 }
 
 // parseDecl dispatches to the appropriate declaration parser.

@@ -76,7 +76,58 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		// (conditional Conds form is added in a later task)
 		b.WriteByte(';')
+	case *InstantiationStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		switch n.UnitKind {
+		case ENTITY:
+			b.WriteString("entity ")
+		case COMPONENT:
+			b.WriteString("component ")
+		case CONFIGURATION:
+			b.WriteString("configuration ")
+		}
+		b.WriteString(n.Unit)
+		if n.Arch != "" {
+			b.WriteByte('(')
+			b.WriteString(n.Arch)
+			b.WriteByte(')')
+		}
+		if len(n.GenericMap) > 0 {
+			b.WriteString(" generic map (")
+			printAssocList(b, n.GenericMap)
+			b.WriteByte(')')
+		}
+		if len(n.PortMap) > 0 {
+			b.WriteString(" port map (")
+			printAssocList(b, n.PortMap)
+			b.WriteByte(')')
+		}
+		b.WriteByte(';')
 	}
+}
+
+func printAssocList(b *strings.Builder, elems []*AssocElement) {
+	for i, e := range elems {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		if e.Formal != "" {
+			b.WriteString(e.Formal)
+			b.WriteString(" => ")
+		}
+		printExpr(b, e.Actual)
+	}
+}
+
+// exprString renders an expression to its canonical text (used for association
+// formals, which are stored as strings).
+func exprString(e Expr) string {
+	var b strings.Builder
+	printExpr(&b, e)
+	return b.String()
 }
 
 func printPackageDecl(b *strings.Builder, n *PackageDecl) {

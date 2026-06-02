@@ -485,3 +485,51 @@ end architecture;`
 		t.Fatalf("want a 'deferred' error, got %v", errs)
 	}
 }
+
+func TestParseInstantiation(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  u0 : entity work.cpu generic map (W => 32) port map (clk => clk, q => open);
+  u1 : entity work.foo port map (a, b, c);
+  u2 : entity work.bar(rtl) port map (clk => clk);
+  c0 : comp_x port map (x => y);
+  c1 : component comp_y port map (x => y);
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	if len(arch.Stmts) != 5 {
+		t.Fatalf("stmts: %d", len(arch.Stmts))
+	}
+	u0, ok := arch.Stmts[0].(*InstantiationStmt)
+	if !ok || u0.Label != "u0" || u0.UnitKind != ENTITY || u0.Unit != "work.cpu" || len(u0.GenericMap) != 1 || len(u0.PortMap) != 2 {
+		t.Fatalf("u0: %#v", arch.Stmts[0])
+	}
+	if u0.PortMap[0].Formal != "clk" {
+		t.Fatalf("u0 portmap formal: %#v", u0.PortMap[0])
+	}
+	u1 := arch.Stmts[1].(*InstantiationStmt)
+	if len(u1.PortMap) != 3 || u1.PortMap[0].Formal != "" { // positional
+		t.Fatalf("u1 positional: %#v", u1)
+	}
+	u2 := arch.Stmts[2].(*InstantiationStmt)
+	if u2.Arch != "rtl" {
+		t.Fatalf("u2 arch: %#v", u2)
+	}
+	c0 := arch.Stmts[3].(*InstantiationStmt)
+	if c0.UnitKind != 0 || c0.Unit != "comp_x" { // bare component (no keyword)
+		t.Fatalf("c0 bare: %#v", c0)
+	}
+	c1 := arch.Stmts[4].(*InstantiationStmt)
+	if c1.UnitKind != COMPONENT {
+		t.Fatalf("c1 component: %#v", c1)
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("instantiation not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

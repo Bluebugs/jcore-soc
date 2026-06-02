@@ -100,6 +100,49 @@ func (n *ConcurrentSignalAssign) End() Pos {
 }
 func (n *ConcurrentSignalAssign) stmtNode() {}
 
+// AssocElement is one association `[formal =>] actual` in a generic/port map.
+// Formal == "" means a positional association. Actual may be Ident{"open"}.
+type AssocElement struct {
+	P      Pos
+	Formal string
+	Actual Expr
+}
+
+func (n *AssocElement) Pos() Pos { return n.P }
+func (n *AssocElement) End() Pos {
+	if n.Actual != nil {
+		return n.Actual.End()
+	}
+	return n.P
+}
+
+// InstantiationStmt is a component/entity/configuration instantiation:
+//
+//	label : [entity|component|configuration] unit [(arch)] [generic map(...)] [port map(...)] ;
+//
+// UnitKind is ENTITY/COMPONENT/CONFIGURATION, or 0 for a bare component instance.
+type InstantiationStmt struct {
+	P          Pos
+	Label      string
+	UnitKind   Kind
+	Unit       string
+	Arch       string // entity architecture spec: entity work.x(arch)
+	GenericMap []*AssocElement
+	PortMap    []*AssocElement
+}
+
+func (n *InstantiationStmt) Pos() Pos { return n.P }
+func (n *InstantiationStmt) End() Pos {
+	if k := len(n.PortMap); k > 0 {
+		return n.PortMap[k-1].End()
+	}
+	if k := len(n.GenericMap); k > 0 {
+		return n.GenericMap[k-1].End()
+	}
+	return n.P
+}
+func (n *InstantiationStmt) stmtNode() {}
+
 // declarations
 type ConstantDecl  struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
 type SignalDecl    struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
