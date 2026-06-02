@@ -43,10 +43,11 @@ func readList(t *testing.T, path string) []string {
 
 func TestCorpusRoundTrip(t *testing.T) {
 	root := corpusRoot(t)
-	rels := readList(t, "testdata/p1a_corpus.txt")
+	rels := readList(t, "testdata/p1b_corpus.txt")
 	if len(rels) == 0 {
-		t.Fatal("empty p1a_corpus.txt")
+		t.Fatal("empty p1b_corpus.txt")
 	}
+	t.Logf("P1b corpus: %d declaration-only files round-trip", len(rels))
 	for _, rel := range rels {
 		rel := rel
 		t.Run(rel, func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestCorpusGhdlReanalyze(t *testing.T) {
 		t.Skip("ghdl not found")
 	}
 	root := corpusRoot(t)
-	for _, rel := range readList(t, "testdata/p1a_corpus.txt") {
+	for _, rel := range readList(t, "testdata/p1b_corpus.txt") {
 		rel := rel
 		t.Run(rel, func(t *testing.T) {
 			src, err := os.ReadFile(filepath.Join(root, rel))
