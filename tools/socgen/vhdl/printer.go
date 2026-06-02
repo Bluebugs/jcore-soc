@@ -262,7 +262,7 @@ func eq(x, y reflect.Value) bool {
 	}
 
 	// Ignore Pos fields entirely.
-	if x.Type() == reflect.TypeOf(NoPos) {
+	if x.Type() == reflect.TypeFor[Pos]() {
 		return true
 	}
 

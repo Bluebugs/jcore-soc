@@ -96,3 +96,26 @@ func TestLexTickVsChar(t *testing.T) {
 		t.Fatalf("'0' should be CHARLIT")
 	}
 }
+
+func TestLexerPositionMultiLine(t *testing.T) {
+	src := []byte("entity foo is\nend entity;")
+	fs := NewFileSet()
+	f := fs.AddFile("t.vhd", len(src))
+	lx := NewLexer(src, f)
+	// Scan to the "end" keyword (first token on line 2).
+	var endTok Token
+	for {
+		tok := lx.Next()
+		if tok.Kind == EOF {
+			t.Fatal("did not find END token")
+		}
+		if tok.Kind == END {
+			endTok = tok
+			break
+		}
+	}
+	pos := fs.Position(endTok.Pos)
+	if pos.Line != 2 || pos.Column != 1 {
+		t.Fatalf("END at %s; want line 2 col 1", pos)
+	}
+}
