@@ -43,7 +43,7 @@ func newParser(src []byte, f *File) *parser {
 	return &parser{toks: toks, file: f}
 }
 
-// newParserFromExpr is a test seam — identical to newParser for P1a.
+// newParserFromExpr is a test seam for parsing a bare expression.
 func newParserFromExpr(src []byte) *parser {
 	return newParser(src, nil)
 }
@@ -355,7 +355,7 @@ func (p *parser) parseFile() *DesignFile {
 		case PACKAGE:
 			// Peek: PACKAGE BODY → deferred
 			if p.peekKind(1) == BODY {
-				p.errorf(p.cur().Pos, "P1a: package body not yet parsed")
+				p.errorf(p.cur().Pos, "deferred: package body not yet parsed")
 				return df
 			}
 			u := p.parsePackageDecl()
@@ -368,10 +368,10 @@ func (p *parser) parseFile() *DesignFile {
 				df.Units = append(df.Units, u)
 			}
 		case ARCHITECTURE:
-			p.errorf(p.cur().Pos, "P1a: architecture body not yet parsed")
+			p.errorf(p.cur().Pos, "deferred: architecture body not yet parsed")
 			return df
 		case CONFIGURATION:
-			p.errorf(p.cur().Pos, "P1a: configuration not yet parsed")
+			p.errorf(p.cur().Pos, "deferred: configuration not yet parsed")
 			return df
 		default:
 			p.errorf(p.cur().Pos, "unexpected token %v %q at top level", p.cur().Kind, p.cur().Lit)
@@ -762,6 +762,11 @@ func (p *parser) parseName() Expr {
 		tick := p.advance() // consume '
 		return &QualifiedExpr{Mark: name, Tick: tick.Pos, X: p.parseParenOrAggregate()}
 	}
+
+	// Note: an attribute applied to a call/indexed result (e.g. f(a)'length) is
+	// not handled here — the attribute loop above runs before this suffix. Such
+	// names need the SelectorExpr/attribute decomposition deferred past P1b.
+	// TODO(p1c): handle suffix attributes when names are properly decomposed.
 
 	// Call or index: name ( args ).
 	if p.at(LPAREN) {

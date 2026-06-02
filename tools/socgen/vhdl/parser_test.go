@@ -238,11 +238,11 @@ func TestDeferredUnitTagged(t *testing.T) {
 	}
 	found := false
 	for _, e := range errs {
-		if strings.Contains(e.Error(), "P1a") {
+		if strings.Contains(e.Error(), "deferred") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("want a P1a-tagged deferred error, got %v", errs)
+		t.Fatalf("want a deferred-unit error, got %v", errs)
 	}
 }
