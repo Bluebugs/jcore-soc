@@ -85,6 +85,13 @@ func Walk(v Visitor, node Node) {
 		for _, prm := range n.Params {
 			Walk(v, prm)
 		}
+	case *AliasDecl:
+		if n.Constraint != nil {
+			Walk(v, n.Constraint)
+		}
+		if n.Target != nil {
+			Walk(v, n.Target)
+		}
 	case *AttributeDecl:
 		// no child nodes
 	case *AttributeSpec:

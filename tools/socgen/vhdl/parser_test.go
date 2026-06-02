@@ -309,6 +309,33 @@ func TestParseAttributeDecls(t *testing.T) {
 	}
 }
 
+func TestParseAliasDecls(t *testing.T) {
+	ds := parseDecls(t, `
+		alias slv is std_logic_vector;
+		alias destv : std_logic_vector(7 downto 0) is dest;`)
+	if len(ds) != 2 {
+		t.Fatalf("got %d decls", len(ds))
+	}
+	a0, ok := ds[0].(*AliasDecl)
+	if !ok || a0.Name != "slv" || a0.SubtypeMark != "" {
+		t.Fatalf("alias0: %#v", ds[0])
+	}
+	a1, ok := ds[1].(*AliasDecl)
+	if !ok || a1.Name != "destv" || a1.SubtypeMark != "std_logic_vector" || a1.Target == nil {
+		t.Fatalf("alias1: %#v", ds[1])
+	}
+	// round-trip
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\nalias destv : std_logic_vector(7 downto 0) is dest;\nend package;"))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("alias not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
 func TestDeferredUnitTagged(t *testing.T) {
 	_, errs := parse(t, "architecture a of e is\nbegin\nend architecture;")
 	if len(errs) == 0 {

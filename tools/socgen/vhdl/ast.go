@@ -115,6 +115,25 @@ func (n *SubprogramDecl) End() Pos {
 	return n.P
 }
 
+// AliasDecl is `alias name [: subtype_indication] is target ;`. SubtypeMark is ""
+// when no subtype indication is present. Target is the aliased name expression.
+type AliasDecl struct {
+	P           Pos
+	Name        string
+	SubtypeMark string
+	Constraint  Expr
+	Target      Expr
+}
+
+func (n *AliasDecl) Pos() Pos { return n.P }
+func (n *AliasDecl) End() Pos {
+	if n.Target != nil {
+		return n.Target.End()
+	}
+	return n.P
+}
+func (n *AliasDecl) declNode() {}
+
 // AttributeDecl is `attribute name : type_mark ;`.
 type AttributeDecl struct{ P Pos; Name, TypeMark string }
 

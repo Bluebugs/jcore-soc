@@ -142,6 +142,16 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 		b.WriteString(" is ")
 		printExpr(b, n.Value)
 		b.WriteByte(';')
+	case *AliasDecl:
+		b.WriteString("alias ")
+		b.WriteString(n.Name)
+		if n.SubtypeMark != "" {
+			b.WriteString(" : ")
+			printSubtypeIndication(b, n.SubtypeMark, n.Constraint)
+		}
+		b.WriteString(" is ")
+		printExpr(b, n.Target)
+		b.WriteByte(';')
 	case *SubprogramDecl:
 		if n.Pure {
 			b.WriteString("pure ")

@@ -497,6 +497,8 @@ func (p *parser) parseDecl() Decl {
 		return p.parseSubprogramDecl()
 	case ATTRIBUTE:
 		return p.parseAttribute()
+	case ALIAS:
+		return p.parseAliasDecl()
 	default:
 		p.errorf(tok.Pos, "unexpected token %v %q in declaration", tok.Kind, tok.Lit)
 		p.advance() // avoid infinite loop
@@ -806,6 +808,21 @@ func (p *parser) parseEntityName() string {
 		p.advance() // ensure progress
 		return ""
 	}
+}
+
+// parseAliasDecl parses `alias name [: subtype_indication] is target ;`.
+func (p *parser) parseAliasDecl() Decl {
+	pos := p.expect(ALIAS).Pos
+	name := p.expect(IDENT).Lit
+	var mark string
+	var constraint Expr
+	if p.accept(COLON) {
+		mark, constraint = p.parseSubtypeIndication()
+	}
+	p.expect(IS)
+	target := p.parseName()
+	p.expect(SEMICOLON)
+	return &AliasDecl{P: pos, Name: name, SubtypeMark: mark, Constraint: constraint, Target: target}
 }
 
 // parseName parses an identifier (possibly dotted or with attribute ticks)
