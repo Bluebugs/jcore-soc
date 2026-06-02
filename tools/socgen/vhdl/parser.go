@@ -124,25 +124,16 @@ func isBinaryOp(k Kind) bool {
 	return false
 }
 
-// opString returns the canonical text for a binary operator token.
-func opString(tok Token) string {
-	if tok.Lit != "" {
-		return tok.Lit
-	}
-	return tok.Kind.String()
-}
-
 // parseExpr parses a P1a expression (single-precedence binary ops + optional
 // range direction suffix).
 func (p *parser) parseExpr() Expr {
 	left := p.parsePrimary()
-	pos := left.Pos()
 
 	// Left-fold binary operators.
 	for isBinaryOp(p.cur().Kind) {
 		op := p.advance()
 		right := p.parsePrimary()
-		left = &BinaryExpr{P: pos, Op: opString(op), X: left, Y: right}
+		left = &BinaryExpr{X: left, OpPos: op.Pos, Op: op.Kind, Y: right}
 	}
 
 	// Optional range suffix.
@@ -153,13 +144,9 @@ func (p *parser) parseExpr() Expr {
 		for isBinaryOp(p.cur().Kind) {
 			op := p.advance()
 			rr := p.parsePrimary()
-			right = &BinaryExpr{P: right.Pos(), Op: opString(op), X: right, Y: rr}
+			right = &BinaryExpr{X: right, OpPos: op.Pos, Op: op.Kind, Y: rr}
 		}
-		dirStr := "to"
-		if dir.Kind == DOWNTO {
-			dirStr = "downto"
-		}
-		return &Range{P: pos, Left: left, Dir: dirStr, Right: right}
+		return &Range{Left: left, DirPos: dir.Pos, Dir: dir.Kind, Right: right}
 	}
 
 	return left
@@ -173,7 +160,7 @@ func (p *parser) parsePrimary() Expr {
 	switch tok.Kind {
 	case INT, REAL, BASEDLIT, CHARLIT, STRINGLIT, BITSTRINGLIT:
 		p.advance()
-		return &Lit{P: tok.Pos, Text: tok.Lit}
+		return &BasicLit{ValuePos: tok.Pos, Kind: tok.Kind, Value: tok.Lit}
 
 	case LPAREN:
 		return p.parseParen()
@@ -187,18 +174,18 @@ func (p *parser) parsePrimary() Expr {
 		switch tok.Kind {
 		case OTHERS, ALL, RANGE, NULL, OPEN:
 			p.advance()
-			return &Name{P: tok.Pos, Text: tok.Kind.String()}
+			return &Ident{NamePos: tok.Pos, Name: tok.Kind.String()}
 		}
 		// Unrecognised primary — record an error and return an empty literal so
 		// the caller can continue.
 		p.errorf(tok.Pos, "unexpected token %v %q in primary", tok.Kind, tok.Lit)
-		return &Lit{P: tok.Pos, Text: ""}
+		return &BasicLit{ValuePos: tok.Pos, Kind: tok.Kind, Value: ""}
 	}
 }
 
 // parseParen parses a parenthesized expression.  For P1a the interior is
-// captured verbatim as a Lit (with tokens joined by spaces) and wrapped in a
-// Paren node.  This keeps the round-trip stable without needing full aggregate
+// captured verbatim as a BasicLit (with tokens joined by spaces) and wrapped in
+// a ParenExpr node. This keeps the round-trip stable without needing full aggregate
 // parsing, which is deferred to P1b.
 func (p *parser) parseParen() Expr {
 	open := p.expect(LPAREN)
@@ -209,6 +196,7 @@ func (p *parser) parseParen() Expr {
 	// the guard), so this loop always terminates.
 	depth := 1
 	var b strings.Builder
+	var closePos Pos
 	for depth > 0 && !p.at(EOF) {
 		tok := p.advance()
 		if tok.Kind == LPAREN {
@@ -216,6 +204,7 @@ func (p *parser) parseParen() Expr {
 		} else if tok.Kind == RPAREN {
 			depth--
 			if depth == 0 {
+				closePos = tok.Pos
 				break // closing paren — not included
 			}
 		}
@@ -228,7 +217,11 @@ func (p *parser) parseParen() Expr {
 		}
 		b.WriteString(text)
 	}
-	return &Paren{P: pos, X: &Lit{P: pos, Text: b.String()}}
+	if depth > 0 {
+		// EOF without a closing paren — best-effort end position.
+		closePos = p.cur().Pos
+	}
+	return &ParenExpr{Lparen: open.Pos, X: &BasicLit{ValuePos: pos, Kind: IDENT, Value: b.String()}, Rparen: closePos}
 }
 
 // parseFile parses a complete VHDL design file: optional context clauses
@@ -668,11 +661,11 @@ func (p *parser) parseName() Expr {
 		text += "'" + attrText
 	}
 
-	name := &Name{P: pos, Text: text}
+	name := &Ident{NamePos: pos, Name: text}
 
 	// Call or index: name ( args ).
 	if p.at(LPAREN) {
-		p.advance() // consume '('
+		lparen := p.advance() // consume '('
 		var args []Expr
 		if !p.at(RPAREN) {
 			args = append(args, p.parseExpr())
@@ -680,8 +673,8 @@ func (p *parser) parseName() Expr {
 				args = append(args, p.parseExpr())
 			}
 		}
-		p.expect(RPAREN)
-		return &CallOrIndex{P: pos, Prefix: name, Args: args}
+		rparen := p.expect(RPAREN)
+		return &CallExpr{Fun: name, Lparen: lparen.Pos, Args: args, Rparen: rparen.Pos}
 	}
 
 	return name

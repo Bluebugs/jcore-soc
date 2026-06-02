@@ -16,17 +16,31 @@ func mustParseExpr(t *testing.T, src string) Expr {
 }
 
 func TestParseMinimalExpr(t *testing.T) {
-	if r, ok := mustParseExpr(t, "31 downto 0").(*Range); !ok || r.Dir != "downto" {
+	if r, ok := mustParseExpr(t, "31 downto 0").(*Range); !ok || r.Dir != DOWNTO {
 		t.Fatalf("range: %#v", r)
 	}
-	if c, ok := mustParseExpr(t, "f(a, b)").(*CallOrIndex); !ok || len(c.Args) != 2 {
+	if c, ok := mustParseExpr(t, "f(a, b)").(*CallExpr); !ok || len(c.Args) != 2 {
 		t.Fatalf("call: %#v", c)
 	}
 	if _, ok := mustParseExpr(t, "a + b").(*BinaryExpr); !ok {
 		t.Fatalf("binary")
 	}
-	if _, ok := mustParseExpr(t, "(others => '0')").(*Paren); !ok {
+	if _, ok := mustParseExpr(t, "(others => '0')").(*ParenExpr); !ok {
 		t.Fatalf("paren/aggregate")
+	}
+}
+
+func TestExprTokenTypedOps(t *testing.T) {
+	be, ok := mustParseExpr(t, "a + b").(*BinaryExpr)
+	if !ok || be.Op != PLUS {
+		t.Fatalf("binary op: %#v", be)
+	}
+	id, ok := be.X.(*Ident)
+	if !ok || id.Name != "a" {
+		t.Fatalf("lhs ident: %#v", be.X)
+	}
+	if got := id.End() - id.Pos(); got != Pos(len("a")) {
+		t.Fatalf("Ident.End-Pos = %d; want 1", got)
 	}
 }
 

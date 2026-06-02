@@ -1,10 +1,13 @@
 package vhdl
 
-type Node interface{ Pos() Pos }
-type DesignUnit interface{ Node; isUnit() }
-type Decl interface{ Node; isDecl() }
-type Expr interface{ Node; isExpr() }
-type TypeDef interface{ Node; isTypeDef() }
+type Node interface {
+	Pos() Pos // position of the first character of the node
+	End() Pos // position immediately after the last character of the node
+}
+type DesignUnit interface{ Node; unitNode() }
+type Decl interface{ Node; declNode() }
+type Expr interface{ Node; exprNode() }
+type TypeDef interface{ Node; typeDefNode() }
 
 type DesignFile struct {
 	Context []Node // *LibraryClause / *UseClause
@@ -18,11 +21,24 @@ func (n *DesignFile) Pos() Pos {
 	return NoPos
 }
 
+// End positions for declarations and clauses are best-effort in P1b: where a
+// node tracks no closing token, End falls back to the end of its last child or
+// to its start. Positions are not consulted by the round-trip oracle (equalAST
+// ignores them); precise declaration End tracking is a later refinement.
+func (n *DesignFile) End() Pos {
+	if k := len(n.Units); k > 0 { return n.Units[k-1].End() }
+	if k := len(n.Context); k > 0 { return n.Context[k-1].End() }
+	return NoPos
+}
+
 type LibraryClause struct{ P Pos; Names []string }
 type UseClause     struct{ P Pos; Names []string }
 
 func (n *LibraryClause) Pos() Pos { return n.P }
 func (n *UseClause)     Pos() Pos { return n.P }
+
+func (n *LibraryClause) End() Pos { return n.P }
+func (n *UseClause)     End() Pos { return n.P }
 
 // design units
 type PackageDecl struct{ P Pos; Name string; Decls []Decl }
@@ -30,8 +46,15 @@ type EntityDecl  struct{ P Pos; Name string; Generics []*InterfaceDecl; Ports []
 
 func (n *PackageDecl) Pos() Pos { return n.P }
 func (n *EntityDecl)  Pos() Pos { return n.P }
-func (n *PackageDecl) isUnit()  {}
-func (n *EntityDecl)  isUnit()  {}
+func (n *PackageDecl) unitNode()  {}
+func (n *EntityDecl)  unitNode()  {}
+
+func (n *PackageDecl) End() Pos { if k := len(n.Decls); k > 0 { return n.Decls[k-1].End() }; return n.P }
+func (n *EntityDecl)  End() Pos {
+	if k := len(n.Ports); k > 0 { return n.Ports[k-1].End() }
+	if k := len(n.Generics); k > 0 { return n.Generics[k-1].End() }
+	return n.P
+}
 
 // declarations
 type ConstantDecl  struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
@@ -48,11 +71,34 @@ func (n *TypeDecl)      Pos() Pos { return n.P }
 func (n *ComponentDecl) Pos() Pos { return n.P }
 func (n *InterfaceDecl) Pos() Pos { return n.P }
 
-func (n *ConstantDecl)  isDecl() {}
-func (n *SignalDecl)    isDecl() {}
-func (n *SubtypeDecl)   isDecl() {}
-func (n *TypeDecl)      isDecl() {}
-func (n *ComponentDecl) isDecl() {}
+func (n *ConstantDecl)  declNode() {}
+func (n *SignalDecl)    declNode() {}
+func (n *SubtypeDecl)   declNode() {}
+func (n *TypeDecl)      declNode() {}
+func (n *ComponentDecl) declNode() {}
+
+func (n *ConstantDecl) End() Pos {
+	if n.Default != nil { return n.Default.End() }
+	if n.Constraint != nil { return n.Constraint.End() }
+	return n.P
+}
+func (n *SignalDecl) End() Pos {
+	if n.Default != nil { return n.Default.End() }
+	if n.Constraint != nil { return n.Constraint.End() }
+	return n.P
+}
+func (n *SubtypeDecl) End() Pos { if n.Constraint != nil { return n.Constraint.End() }; return n.P }
+func (n *TypeDecl)    End() Pos { if n.Def != nil { return n.Def.End() }; return n.P }
+func (n *ComponentDecl) End() Pos {
+	if k := len(n.Ports); k > 0 { return n.Ports[k-1].End() }
+	if k := len(n.Generics); k > 0 { return n.Generics[k-1].End() }
+	return n.P
+}
+func (n *InterfaceDecl) End() Pos {
+	if n.Default != nil { return n.Default.End() }
+	if n.Constraint != nil { return n.Constraint.End() }
+	return n.P
+}
 
 // type definitions
 type EnumDef   struct{ P Pos; Lits []string }
@@ -64,28 +110,39 @@ func (n *EnumDef)   Pos() Pos { return n.P }
 func (n *RecordDef) Pos() Pos { return n.P }
 func (n *ArrayDef)  Pos() Pos { return n.P }
 
-func (n *EnumDef)   isTypeDef() {}
-func (n *RecordDef) isTypeDef() {}
-func (n *ArrayDef)  isTypeDef() {}
+func (n *EnumDef)   typeDefNode() {}
+func (n *RecordDef) typeDefNode() {}
+func (n *ArrayDef)  typeDefNode() {}
 
-// expressions (minimal P1a set)
-type Lit         struct{ P Pos; Text string }
-type Name        struct{ P Pos; Text string }
-type Range       struct{ P Pos; Left Expr; Dir string; Right Expr } // Dir: "to" | "downto"
-type CallOrIndex struct{ P Pos; Prefix Expr; Args []Expr }
-type BinaryExpr  struct{ P Pos; Op string; X, Y Expr }
-type Paren       struct{ P Pos; X Expr }
+func (n *EnumDef)   End() Pos { return n.P }
+func (n *RecordDef) End() Pos { return n.P }
+func (n *ArrayDef)  End() Pos { return n.P }
 
-func (n *Lit)         Pos() Pos { return n.P }
-func (n *Name)        Pos() Pos { return n.P }
-func (n *Range)       Pos() Pos { return n.P }
-func (n *CallOrIndex) Pos() Pos { return n.P }
-func (n *BinaryExpr)  Pos() Pos { return n.P }
-func (n *Paren)       Pos() Pos { return n.P }
+// expressions
+type BasicLit    struct{ ValuePos Pos; Kind Kind; Value string } // INT/REAL/BASEDLIT/CHARLIT/STRINGLIT/BITSTRINGLIT (or IDENT for the transient verbatim-paren capture, removed in the aggregate task)
+type Ident       struct{ NamePos Pos; Name string }              // a (possibly compound/attributed) name; full decomposition into SelectorExpr is deferred
+type Range       struct{ Left Expr; DirPos Pos; Dir Kind; Right Expr } // Dir is TO or DOWNTO
+type CallExpr     struct{ Fun Expr; Lparen Pos; Args []Expr; Rparen Pos } // also indexed-name / slice / type-conversion — VHDL can't disambiguate syntactically
+type BinaryExpr  struct{ X Expr; OpPos Pos; Op Kind; Y Expr }
+type ParenExpr   struct{ Lparen Pos; X Expr; Rparen Pos }
 
-func (n *Lit)         isExpr() {}
-func (n *Name)        isExpr() {}
-func (n *Range)       isExpr() {}
-func (n *CallOrIndex) isExpr() {}
-func (n *BinaryExpr)  isExpr() {}
-func (n *Paren)       isExpr() {}
+func (n *BasicLit)   Pos() Pos { return n.ValuePos }
+func (n *Ident)      Pos() Pos { return n.NamePos }
+func (n *Range)      Pos() Pos { return n.Left.Pos() }
+func (n *CallExpr)   Pos() Pos { return n.Fun.Pos() }
+func (n *BinaryExpr) Pos() Pos { return n.X.Pos() }
+func (n *ParenExpr)  Pos() Pos { return n.Lparen }
+
+func (n *BasicLit)   End() Pos { return n.ValuePos + Pos(len(n.Value)) }
+func (n *Ident)      End() Pos { return n.NamePos + Pos(len(n.Name)) }
+func (n *Range)      End() Pos { return n.Right.End() }
+func (n *CallExpr)   End() Pos { return n.Rparen + 1 }
+func (n *BinaryExpr) End() Pos { return n.Y.End() }
+func (n *ParenExpr)  End() Pos { return n.Rparen + 1 }
+
+func (n *BasicLit)   exprNode() {}
+func (n *Ident)      exprNode() {}
+func (n *Range)      exprNode() {}
+func (n *CallExpr)   exprNode() {}
+func (n *BinaryExpr) exprNode() {}
+func (n *ParenExpr)  exprNode() {}

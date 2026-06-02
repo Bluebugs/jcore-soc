@@ -179,7 +179,7 @@ func printComponentDecl(b *strings.Builder, n *ComponentDecl, indent string) {
 }
 
 // printSubtypeIndication prints "mark" or "mark(constraint)" canonically.
-// For a Paren constraint, the inner Lit text is emitted directly so the result
+// For a ParenExpr constraint, the inner literal text is emitted directly so the result
 // is mark(inner) rather than mark((inner)).
 func printSubtypeIndication(b *strings.Builder, mark string, constraint Expr) {
 	b.WriteString(mark)
@@ -187,7 +187,7 @@ func printSubtypeIndication(b *strings.Builder, mark string, constraint Expr) {
 		return
 	}
 	b.WriteByte('(')
-	if p, ok := constraint.(*Paren); ok {
+	if p, ok := constraint.(*ParenExpr); ok {
 		// Unwrap: emit the inner literal directly.
 		printExpr(b, p.X)
 	} else {
@@ -198,24 +198,24 @@ func printSubtypeIndication(b *strings.Builder, mark string, constraint Expr) {
 
 func printExpr(b *strings.Builder, e Expr) {
 	switch n := e.(type) {
-	case *Lit:
-		b.WriteString(n.Text)
-	case *Name:
-		b.WriteString(n.Text)
+	case *BasicLit:
+		b.WriteString(n.Value)
+	case *Ident:
+		b.WriteString(n.Name)
 	case *Range:
 		printExpr(b, n.Left)
 		b.WriteByte(' ')
-		b.WriteString(n.Dir)
+		b.WriteString(n.Dir.String())
 		b.WriteByte(' ')
 		printExpr(b, n.Right)
 	case *BinaryExpr:
 		printExpr(b, n.X)
 		b.WriteByte(' ')
-		b.WriteString(n.Op)
+		b.WriteString(n.Op.String())
 		b.WriteByte(' ')
 		printExpr(b, n.Y)
-	case *CallOrIndex:
-		printExpr(b, n.Prefix)
+	case *CallExpr:
+		printExpr(b, n.Fun)
 		b.WriteByte('(')
 		for i, arg := range n.Args {
 			if i > 0 {
@@ -224,7 +224,7 @@ func printExpr(b *strings.Builder, e Expr) {
 			printExpr(b, arg)
 		}
 		b.WriteByte(')')
-	case *Paren:
+	case *ParenExpr:
 		b.WriteByte('(')
 		printExpr(b, n.X)
 		b.WriteByte(')')
