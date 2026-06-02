@@ -75,6 +75,9 @@ func TestExprUnary(t *testing.T) {
 	if u, ok := mustParseExpr(t, "-b").(*UnaryExpr); !ok || u.Op != MINUS {
 		t.Fatalf("neg: %#v", u)
 	}
+	if u, ok := mustParseExpr(t, "+b").(*UnaryExpr); !ok || u.Op != PLUS {
+		t.Fatalf("pos: %#v", u)
+	}
 	if u, ok := mustParseExpr(t, "abs x").(*UnaryExpr); !ok || u.Op != ABS {
 		t.Fatalf("abs: %#v", u)
 	}

@@ -147,7 +147,10 @@ func (p *parser) parseLogical() Expr {
 	}
 }
 
-// parseRelation handles relational operators.
+// parseRelation parses the relational tier (= /= < <= > >=). VHDL-93 LRM 7.2
+// permits at most one relational operator per expression; this loop is
+// permissive (it would accept a = b = c) but parses all valid input correctly.
+// TODO(strict): a one-shot `if` would enforce the LRM cardinality.
 func (p *parser) parseRelation() Expr {
 	left := p.parseShift()
 	for {
@@ -162,7 +165,9 @@ func (p *parser) parseRelation() Expr {
 	}
 }
 
-// parseShift handles shift/rotate operators.
+// parseShift parses the shift/rotate tier (sll srl sla sra rol ror). VHDL-93
+// LRM 7.3.2 permits at most one shift operator per expression; this loop is
+// permissive but parses all valid input correctly.
 func (p *parser) parseShift() Expr {
 	left := p.parseSimple()
 	for {
@@ -214,8 +219,12 @@ func (p *parser) parseTerm() Expr {
 	}
 }
 
-// parseFactor handles abs/not unary operators and the (non-associative) **
-// operator, both of which bind tightly around a primary.
+// parseFactor handles abs/not unary operators (each applied to one primary)
+// and the non-associative ** operator (primary ** primary). Both bind more
+// tightly than any multiplying operator. Per VHDL-93 LRM 7.3.4 the operand of
+// abs/not is a primary (NOT another factor), and ** is non-associative — so
+// abs/not do not nest and a ** b ** c is not folded without parens. This is
+// intentional; do not change parsePrimary() to parseFactor() here.
 func (p *parser) parseFactor() Expr {
 	if p.at(ABS) || p.at(NOT) {
 		op := p.advance()
