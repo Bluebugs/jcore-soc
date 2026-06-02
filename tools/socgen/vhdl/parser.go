@@ -860,10 +860,7 @@ func (p *parser) parseGroupDecl() Decl {
 // parseEntityClassEntry reads one `entity_class [<>]` in a group template.
 func (p *parser) parseEntityClassEntry() string {
 	t := p.advance() // entity-class keyword
-	s := t.Kind.String()
-	if t.Lit != "" {
-		s = t.Lit
-	}
+	s := t.Kind.String() // canonical lowercase; ignore raw source casing
 	if p.accept(BOX) {
 		s += " <>"
 	}

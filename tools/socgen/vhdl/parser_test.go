@@ -351,6 +351,12 @@ func TestParseGroupDecls(t *testing.T) {
 	if !ok || g.Name != "sigs" || g.TemplateMark != "global_ports" || len(g.Constituents) != 2 {
 		t.Fatalf("group decl: %#v", ds[1])
 	}
+	// canonical-casing + multi-class: uppercase source keyword must normalize.
+	ds2 := parseDecls(t, `group g2 is (SIGNAL <>, label);`)
+	tmpl2, ok := ds2[0].(*GroupTemplateDecl)
+	if !ok || len(tmpl2.Classes) != 2 || tmpl2.Classes[0] != "signal <>" || tmpl2.Classes[1] != "label" {
+		t.Fatalf("canonical class casing/multi-class: %#v", ds2[0])
+	}
 	// round-trip
 	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\ngroup local_ports is (signal <>);\ngroup sigs : global_ports(rx, tx);\nend package;"))
 	if len(errs) != 0 {
