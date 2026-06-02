@@ -1,0 +1,12 @@
+components/cpu/decode/decode_table.vhd
+components/emac/emac_pkg.vhd
+components/misc/bus_mux_ff_pkg.vhd
+components/misc/bus_mux_lock_pkg.vhd
+components/misc/bus_mux_pkg.vhd
+lib/fixed_dsm_pkg/ieee/fixed_float_types_c.vhd
+lib/memory_tech_lib/ram_18x2048_1rw.vhd
+lib/memory_tech_lib/ram_2x8x2048_2rw.vhd
+lib/memory_tech_lib/ram_2x8x256_1rw.vhd
+lib/memory_tech_lib/ram_32x1x512_2rw.vhd
+lib/memory_tech_lib/rom_32x2048_1r.vhd
+targets/clk_config.vhd
