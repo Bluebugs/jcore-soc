@@ -199,6 +199,360 @@ done:
 	return &Paren{P: pos, X: &Lit{P: pos, Text: inner}}
 }
 
+// ParseFile parses a complete VHDL design file: optional context clauses
+// followed by one or more design units.
+func (p *parser) ParseFile() *DesignFile {
+	df := &DesignFile{}
+
+	// Context clauses: library / use
+	for p.at(LIBRARY) || p.at(USE) {
+		switch p.cur().Kind {
+		case LIBRARY:
+			pos := p.advance().Pos // consume LIBRARY
+			var names []string
+			names = append(names, p.expect(IDENT).Lit)
+			for p.accept(COMMA) {
+				names = append(names, p.expect(IDENT).Lit)
+			}
+			p.expect(SEMICOLON)
+			df.Context = append(df.Context, &LibraryClause{P: pos, Names: names})
+		case USE:
+			pos := p.advance().Pos // consume USE
+			var names []string
+			names = append(names, p.parseDottedName())
+			for p.accept(COMMA) {
+				names = append(names, p.parseDottedName())
+			}
+			p.expect(SEMICOLON)
+			df.Context = append(df.Context, &UseClause{P: pos, Names: names})
+		}
+	}
+
+	// Design units
+	for !p.at(EOF) {
+		switch p.cur().Kind {
+		case PACKAGE:
+			// Peek: PACKAGE BODY → deferred
+			if p.i+1 < len(p.toks) && p.toks[p.i+1].Kind == BODY {
+				p.errs = append(p.errs, fmt.Errorf("%v: P1a: package body not yet parsed", p.cur().Pos))
+				return df
+			}
+			u := p.parsePackageDecl()
+			if u != nil {
+				df.Units = append(df.Units, u)
+			}
+		case ENTITY:
+			u := p.parseEntityDecl()
+			if u != nil {
+				df.Units = append(df.Units, u)
+			}
+		case ARCHITECTURE:
+			p.errs = append(p.errs, fmt.Errorf("%v: P1a: architecture body not yet parsed", p.cur().Pos))
+			return df
+		case CONFIGURATION:
+			p.errs = append(p.errs, fmt.Errorf("%v: P1a: configuration not yet parsed", p.cur().Pos))
+			return df
+		default:
+			p.errs = append(p.errs, fmt.Errorf("%v: unexpected token %v %q at top level", p.cur().Pos, p.cur().Kind, p.cur().Lit))
+			return df
+		}
+	}
+	return df
+}
+
+// parseDottedName reads a possibly-dotted name (e.g. ieee.std_logic_1164.all)
+// and returns it as a string.
+func (p *parser) parseDottedName() string {
+	tok := p.cur()
+	var text string
+	if tok.Kind == IDENT || tok.Kind == EXTIDENT {
+		p.advance()
+		text = tok.Lit
+	} else if tok.Kind > kwStart && tok.Kind < kwEnd {
+		p.advance()
+		text = tok.Kind.String()
+	} else {
+		p.errs = append(p.errs, fmt.Errorf("%v: expected name, got %v %q", tok.Pos, tok.Kind, tok.Lit))
+		return ""
+	}
+	for p.at(DOT) {
+		p.advance() // consume '.'
+		next := p.cur()
+		if next.Kind == IDENT || next.Kind == EXTIDENT || next.Kind == ALL {
+			p.advance()
+			seg := next.Lit
+			if seg == "" {
+				seg = next.Kind.String()
+			}
+			text += "." + seg
+		} else if next.Kind > kwStart && next.Kind < kwEnd {
+			p.advance()
+			text += "." + next.Kind.String()
+		} else {
+			break
+		}
+	}
+	return text
+}
+
+// parsePackageDecl parses: PACKAGE name IS {decl} END [PACKAGE] [name] ;
+func (p *parser) parsePackageDecl() *PackageDecl {
+	pos := p.expect(PACKAGE).Pos
+	name := p.expect(IDENT).Lit
+	p.expect(IS)
+
+	var decls []Decl
+	for !p.at(END) && !p.at(EOF) {
+		d := p.parseDecl()
+		if d != nil {
+			decls = append(decls, d)
+		}
+	}
+	p.expect(END)
+	p.accept(PACKAGE)
+	// optional closing name
+	if p.at(IDENT) {
+		p.advance()
+	}
+	p.expect(SEMICOLON)
+	return &PackageDecl{P: pos, Name: name, Decls: decls}
+}
+
+// parseEntityDecl is a placeholder — entity parsing is implemented in the next task.
+func (p *parser) parseEntityDecl() *EntityDecl {
+	p.errs = append(p.errs, fmt.Errorf("%v: P1a: entity declaration not yet parsed", p.cur().Pos))
+	return nil
+}
+
+// parseDecl dispatches to the appropriate declaration parser.
+func (p *parser) parseDecl() Decl {
+	tok := p.cur()
+	switch tok.Kind {
+	case CONSTANT:
+		return p.parseConstantOrSignal(true)
+	case SIGNAL:
+		return p.parseConstantOrSignal(false)
+	case SUBTYPE:
+		return p.parseSubtypeDecl()
+	case TYPE:
+		return p.parseTypeDecl()
+	case COMPONENT:
+		return p.parseComponentDecl()
+	default:
+		p.errs = append(p.errs, fmt.Errorf("%v: unexpected token %v %q in declaration", tok.Pos, tok.Kind, tok.Lit))
+		p.advance() // avoid infinite loop
+		return nil
+	}
+}
+
+// parseConstantOrSignal parses CONSTANT or SIGNAL declarations.
+func (p *parser) parseConstantOrSignal(isConst bool) Decl {
+	pos := p.advance().Pos // consume CONSTANT or SIGNAL
+	names := p.parseNameList()
+	p.expect(COLON)
+	mark, constraint := p.parseSubtypeIndication()
+	var def Expr
+	if p.accept(ASSIGN) {
+		def = p.parseExpr()
+	}
+	p.expect(SEMICOLON)
+	if isConst {
+		return &ConstantDecl{P: pos, Names: names, SubtypeMark: mark, Constraint: constraint, Default: def}
+	}
+	return &SignalDecl{P: pos, Names: names, SubtypeMark: mark, Constraint: constraint, Default: def}
+}
+
+// parseSubtypeDecl parses: SUBTYPE id IS subtype-indication ;
+func (p *parser) parseSubtypeDecl() *SubtypeDecl {
+	pos := p.expect(SUBTYPE).Pos
+	name := p.expect(IDENT).Lit
+	p.expect(IS)
+	mark, constraint := p.parseSubtypeIndication()
+	p.expect(SEMICOLON)
+	return &SubtypeDecl{P: pos, Name: name, SubtypeMark: mark, Constraint: constraint}
+}
+
+// parseTypeDecl parses: TYPE id IS type-definition ;
+func (p *parser) parseTypeDecl() *TypeDecl {
+	pos := p.expect(TYPE).Pos
+	name := p.expect(IDENT).Lit
+	p.expect(IS)
+
+	var def TypeDef
+	switch p.cur().Kind {
+	case LPAREN:
+		// Enumeration type: ( lit1, lit2, ... )
+		epos := p.cur().Pos
+		p.advance() // consume '('
+		var lits []string
+		lits = append(lits, p.parseEnumLit())
+		for p.accept(COMMA) {
+			lits = append(lits, p.parseEnumLit())
+		}
+		p.expect(RPAREN)
+		def = &EnumDef{P: epos, Lits: lits}
+
+	case RECORD:
+		rpos := p.advance().Pos // consume RECORD
+		var fields []RecordField
+		for !p.at(END) && !p.at(EOF) {
+			names := p.parseNameList()
+			p.expect(COLON)
+			mark, constraint := p.parseSubtypeIndication()
+			p.expect(SEMICOLON)
+			fields = append(fields, RecordField{Names: names, SubtypeMark: mark, Constraint: constraint})
+		}
+		p.expect(END)
+		p.accept(RECORD)
+		// optional type name
+		if p.at(IDENT) {
+			p.advance()
+		}
+		def = &RecordDef{P: rpos, Fields: fields}
+
+	case ARRAY:
+		apos := p.cur().Pos
+		// Capture everything up to the semicolon as raw text
+		var parts []string
+		for !p.at(SEMICOLON) && !p.at(EOF) {
+			tok := p.advance()
+			text := tok.Lit
+			if text == "" {
+				text = tok.Kind.String()
+			}
+			parts = append(parts, text)
+		}
+		def = &ArrayDef{P: apos, Text: strings.Join(parts, " ")}
+
+	default:
+		p.errs = append(p.errs, fmt.Errorf("%v: unsupported type definition starting with %v", p.cur().Pos, p.cur().Kind))
+		// consume until semicolon
+		for !p.at(SEMICOLON) && !p.at(EOF) {
+			p.advance()
+		}
+	}
+	p.expect(SEMICOLON)
+	return &TypeDecl{P: pos, Name: name, Def: def}
+}
+
+// parseEnumLit parses an enumeration literal: identifier or character literal.
+func (p *parser) parseEnumLit() string {
+	tok := p.cur()
+	if tok.Kind == IDENT || tok.Kind == CHARLIT {
+		p.advance()
+		return tok.Lit
+	}
+	p.errs = append(p.errs, fmt.Errorf("%v: expected enum literal, got %v %q", tok.Pos, tok.Kind, tok.Lit))
+	p.advance()
+	return ""
+}
+
+// parseComponentDecl parses: COMPONENT id [IS] [GENERIC(...);] [PORT(...);] END COMPONENT [id] ;
+func (p *parser) parseComponentDecl() *ComponentDecl {
+	pos := p.expect(COMPONENT).Pos
+	name := p.expect(IDENT).Lit
+	p.accept(IS)
+
+	var generics, ports []*InterfaceDecl
+	if p.at(GENERIC) {
+		p.advance() // consume GENERIC
+		generics = p.parseInterfaceList()
+		p.expect(SEMICOLON)
+	}
+	if p.at(PORT) {
+		p.advance() // consume PORT
+		ports = p.parseInterfaceList()
+		p.expect(SEMICOLON)
+	}
+
+	p.expect(END)
+	p.accept(COMPONENT)
+	if p.at(IDENT) {
+		p.advance()
+	}
+	p.expect(SEMICOLON)
+	return &ComponentDecl{P: pos, Name: name, Generics: generics, Ports: ports}
+}
+
+// parseInterfaceList parses: ( iface {; iface} )
+func (p *parser) parseInterfaceList() []*InterfaceDecl {
+	p.expect(LPAREN)
+	var decls []*InterfaceDecl
+	if !p.at(RPAREN) {
+		decls = append(decls, p.parseInterfaceDecl())
+		for p.accept(SEMICOLON) {
+			if p.at(RPAREN) {
+				break
+			}
+			decls = append(decls, p.parseInterfaceDecl())
+		}
+	}
+	p.expect(RPAREN)
+	return decls
+}
+
+// parseInterfaceDecl parses: name-list : [mode] subtype-indication [:= expr]
+func (p *parser) parseInterfaceDecl() *InterfaceDecl {
+	pos := p.cur().Pos
+	names := p.parseNameList()
+	p.expect(COLON)
+
+	// Optional mode keyword
+	mode := ""
+	switch p.cur().Kind {
+	case IN:
+		mode = "in"
+		p.advance()
+	case OUT:
+		mode = "out"
+		p.advance()
+	case INOUT:
+		mode = "inout"
+		p.advance()
+	case BUFFER:
+		mode = "buffer"
+		p.advance()
+	case LINKAGE:
+		mode = "linkage"
+		p.advance()
+	}
+
+	mark, constraint := p.parseSubtypeIndication()
+	var def Expr
+	if p.accept(ASSIGN) {
+		def = p.parseExpr()
+	}
+	return &InterfaceDecl{P: pos, Names: names, Mode: mode, SubtypeMark: mark, Constraint: constraint, Default: def}
+}
+
+// parseNameList parses: id {, id}
+func (p *parser) parseNameList() []string {
+	var names []string
+	names = append(names, p.expect(IDENT).Lit)
+	for p.accept(COMMA) {
+		names = append(names, p.expect(IDENT).Lit)
+	}
+	return names
+}
+
+// parseSubtypeIndication parses a subtype indication: type-mark [(constraint)]
+// Returns the type mark as a string and an optional constraint expression.
+func (p *parser) parseSubtypeIndication() (mark string, constraint Expr) {
+	// Parse a (possibly dotted) type mark
+	mark = p.parseDottedName()
+
+	// Optional constraint
+	switch p.cur().Kind {
+	case LPAREN:
+		// Index or range constraint — parse as an expression
+		constraint = p.parseParen()
+	case RANGE:
+		p.advance() // consume RANGE keyword
+		constraint = p.parseExpr()
+	}
+	return mark, constraint
+}
+
 // parseName parses an identifier (possibly dotted or with attribute ticks)
 // and optionally a call-or-index suffix.
 func (p *parser) parseName() Expr {
