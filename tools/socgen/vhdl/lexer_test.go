@@ -55,3 +55,41 @@ func TestLexIntAndComment(t *testing.T) {
 		t.Fatalf("want COMMENT got %v", tok.Kind)
 	}
 }
+
+func TestLexLiterals(t *testing.T) {
+	cases := []struct {
+		src  string
+		kind Kind
+		lit  string
+	}{
+		{`16#FF#`, BASEDLIT, `16#FF#`},
+		{`2#1010_1010#`, BASEDLIT, `2#1010_1010#`},
+		{`1.5e3`, REAL, `1.5e3`},
+		{`3.14`, REAL, `3.14`},
+		{`'a'`, CHARLIT, `'a'`},
+		{`"hello"`, STRINGLIT, `"hello"`},
+		{`x"FF"`, BITSTRINGLIT, `x"FF"`},
+		{`b"1010"`, BITSTRINGLIT, `b"1010"`},
+		{`\ext id\`, EXTIDENT, `\ext id\`},
+	}
+	for _, c := range cases {
+		l := NewLexer([]byte(c.src), "t.vhd")
+		tok := l.Next()
+		if tok.Kind != c.kind || tok.Lit != c.lit {
+			t.Fatalf("%q -> %v %q; want %v %q", c.src, tok.Kind, tok.Lit, c.kind, c.lit)
+		}
+	}
+}
+
+func TestLexTickVsChar(t *testing.T) {
+	// attribute tick: ident ' ident  => TICK between two idents (not a char literal)
+	got := kinds(`clk'event`)
+	want := []Kind{IDENT, TICK, IDENT}
+	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("clk'event -> %v", got)
+	}
+	// char literal in expression context
+	if l := NewLexer([]byte(`'0'`), "t"); l.Next().Kind != CHARLIT {
+		t.Fatalf("'0' should be CHARLIT")
+	}
+}
