@@ -152,6 +152,20 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 		b.WriteString(" is ")
 		printExpr(b, n.Target)
 		b.WriteByte(';')
+	case *GroupTemplateDecl:
+		b.WriteString("group ")
+		b.WriteString(n.Name)
+		b.WriteString(" is (")
+		b.WriteString(strings.Join(n.Classes, ", "))
+		b.WriteString(");")
+	case *GroupDecl:
+		b.WriteString("group ")
+		b.WriteString(n.Name)
+		b.WriteString(" : ")
+		b.WriteString(n.TemplateMark)
+		b.WriteByte('(')
+		b.WriteString(strings.Join(n.Constituents, ", "))
+		b.WriteString(");")
 	case *SubprogramDecl:
 		if n.Pure {
 			b.WriteString("pure ")

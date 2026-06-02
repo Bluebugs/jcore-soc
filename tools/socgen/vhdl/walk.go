@@ -94,6 +94,10 @@ func Walk(v Visitor, node Node) {
 		}
 	case *AttributeDecl:
 		// no child nodes
+	case *GroupTemplateDecl:
+		// no child nodes
+	case *GroupDecl:
+		// no child nodes
 	case *AttributeSpec:
 		if n.Value != nil {
 			Walk(v, n.Value)

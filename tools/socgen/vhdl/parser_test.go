@@ -336,6 +336,33 @@ func TestParseAliasDecls(t *testing.T) {
 	}
 }
 
+func TestParseGroupDecls(t *testing.T) {
+	ds := parseDecls(t, `
+		group local_ports is (signal <>);
+		group sigs : global_ports(rx, tx);`)
+	if len(ds) != 2 {
+		t.Fatalf("got %d decls", len(ds))
+	}
+	tmpl, ok := ds[0].(*GroupTemplateDecl)
+	if !ok || tmpl.Name != "local_ports" || len(tmpl.Classes) != 1 || tmpl.Classes[0] != "signal <>" {
+		t.Fatalf("group template: %#v", ds[0])
+	}
+	g, ok := ds[1].(*GroupDecl)
+	if !ok || g.Name != "sigs" || g.TemplateMark != "global_ports" || len(g.Constituents) != 2 {
+		t.Fatalf("group decl: %#v", ds[1])
+	}
+	// round-trip
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\ngroup local_ports is (signal <>);\ngroup sigs : global_ports(rx, tx);\nend package;"))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("group not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
 func TestDeferredUnitTagged(t *testing.T) {
 	_, errs := parse(t, "architecture a of e is\nbegin\nend architecture;")
 	if len(errs) == 0 {

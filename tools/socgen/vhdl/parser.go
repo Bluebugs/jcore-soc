@@ -499,6 +499,8 @@ func (p *parser) parseDecl() Decl {
 		return p.parseAttribute()
 	case ALIAS:
 		return p.parseAliasDecl()
+	case GROUP:
+		return p.parseGroupDecl()
 	default:
 		p.errorf(tok.Pos, "unexpected token %v %q in declaration", tok.Kind, tok.Lit)
 		p.advance() // avoid infinite loop
@@ -823,6 +825,49 @@ func (p *parser) parseAliasDecl() Decl {
 	target := p.parseName()
 	p.expect(SEMICOLON)
 	return &AliasDecl{P: pos, Name: name, SubtypeMark: mark, Constraint: constraint, Target: target}
+}
+
+// parseGroupDecl parses a group template declaration (`group n is (classes) ;`)
+// or a group declaration (`group n : template (constituents) ;`).
+func (p *parser) parseGroupDecl() Decl {
+	pos := p.expect(GROUP).Pos
+	name := p.expect(IDENT).Lit
+	if p.accept(IS) {
+		// template: ( entity_class [<>] {, ...} )
+		p.expect(LPAREN)
+		var classes []string
+		classes = append(classes, p.parseEntityClassEntry())
+		for p.accept(COMMA) {
+			classes = append(classes, p.parseEntityClassEntry())
+		}
+		p.expect(RPAREN)
+		p.expect(SEMICOLON)
+		return &GroupTemplateDecl{P: pos, Name: name, Classes: classes}
+	}
+	p.expect(COLON)
+	tmpl := p.parseDottedName()
+	p.expect(LPAREN)
+	var cons []string
+	cons = append(cons, p.parseDottedName())
+	for p.accept(COMMA) {
+		cons = append(cons, p.parseDottedName())
+	}
+	p.expect(RPAREN)
+	p.expect(SEMICOLON)
+	return &GroupDecl{P: pos, Name: name, TemplateMark: tmpl, Constituents: cons}
+}
+
+// parseEntityClassEntry reads one `entity_class [<>]` in a group template.
+func (p *parser) parseEntityClassEntry() string {
+	t := p.advance() // entity-class keyword
+	s := t.Kind.String()
+	if t.Lit != "" {
+		s = t.Lit
+	}
+	if p.accept(BOX) {
+		s += " <>"
+	}
+	return s
 }
 
 // parseName parses an identifier (possibly dotted or with attribute ticks)

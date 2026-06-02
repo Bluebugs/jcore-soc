@@ -151,6 +151,21 @@ func (n *AttributeDecl) Pos() Pos { return n.P }
 func (n *AttributeDecl) End() Pos { return n.P }
 func (n *AttributeDecl) declNode() {}
 
+// GroupTemplateDecl is `group name is (class [<>] {, class [<>]}) ;`.
+// Each Classes entry is the class keyword, with " <>" appended when boxed.
+type GroupTemplateDecl struct{ P Pos; Name string; Classes []string }
+
+// GroupDecl is `group name : template_name (constituent {, constituent}) ;`.
+type GroupDecl struct{ P Pos; Name string; TemplateMark string; Constituents []string }
+
+func (n *GroupTemplateDecl) Pos() Pos { return n.P }
+func (n *GroupTemplateDecl) End() Pos { return n.P }
+func (n *GroupTemplateDecl) declNode() {}
+
+func (n *GroupDecl) Pos() Pos { return n.P }
+func (n *GroupDecl) End() Pos { return n.P }
+func (n *GroupDecl) declNode() {}
+
 func (n *AttributeSpec) Pos() Pos { return n.P }
 func (n *AttributeSpec) End() Pos {
 	if n.Value != nil {
