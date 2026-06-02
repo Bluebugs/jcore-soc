@@ -203,8 +203,23 @@ func (k Kind) String() string {
 
 // LookupKeyword reports whether s (case-insensitively) is a reserved word.
 func LookupKeyword(s string) (Kind, bool) {
+	// Fast path: VHDL source is overwhelmingly lowercase, so avoid allocating a
+	// lowered copy unless an uppercase byte is actually present.
+	if !hasUpper(s) {
+		k, ok := keywords[s]
+		return k, ok
+	}
 	k, ok := keywords[lower(s)]
 	return k, ok
+}
+
+func hasUpper(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			return true
+		}
+	}
+	return false
 }
 
 func lower(s string) string {

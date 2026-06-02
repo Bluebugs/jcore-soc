@@ -161,8 +161,7 @@ func (l *Lexer) Next() Token {
 		lit := string(l.src[start:l.off])
 		// Check for bit-string literal: single base letter followed by "
 		if len(lit) == 1 && isBitstringBase(lit[0]) && l.peek() == '"' {
-			// lex the string part
-			strStart := l.off
+			// lex the string part (start..l.off stays contiguous)
 			l.advance() // opening '"'
 			for l.off < len(l.src) {
 				ch := l.peek()
@@ -177,7 +176,8 @@ func (l *Lexer) Next() Token {
 					l.advance()
 				}
 			}
-			return l.emit(Token{Kind: BITSTRINGLIT, Lit: string(l.src[start:strStart]) + string(l.src[strStart:l.off]), Pos: startPos})
+			// [start:strStart] and [strStart:l.off] are contiguous, so one slice.
+			return l.emit(Token{Kind: BITSTRINGLIT, Lit: string(l.src[start:l.off]), Pos: startPos})
 		}
 		if kind, ok := LookupKeyword(lit); ok {
 			return l.emit(Token{Kind: kind, Lit: lit, Pos: startPos})

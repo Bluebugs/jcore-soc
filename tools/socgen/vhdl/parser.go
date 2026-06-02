@@ -629,9 +629,7 @@ func (p *parser) parseName() Expr {
 	// Attribute tick: 'attrname sequences.  TICK must be followed by an
 	// identifier or keyword to be an attribute (not a character literal).
 	for p.at(TICK) {
-		next2 := p.toks[p.i+0] // that's the TICK itself — check what follows
-		_ = next2
-		// Peek at token after the tick.
+		// Peek at the token after the tick.
 		if p.i+1 >= len(p.toks) {
 			break
 		}
