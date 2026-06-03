@@ -85,6 +85,38 @@ func (n *PackageBody) End() Pos {
 }
 func (n *PackageBody) unitNode() {}
 
+// ConfigurationDecl is `configuration name of entity is <decls> <block> end ;`.
+type ConfigurationDecl struct {
+	P      Pos
+	Name   string
+	Entity string
+	Decls  []*UseClause // configuration declarative part (use clauses)
+	Block  *BlockConfig // the top block configuration
+}
+
+func (n *ConfigurationDecl) Pos() Pos { return n.P }
+func (n *ConfigurationDecl) End() Pos {
+	if n.Block != nil { return n.Block.End() }
+	if k := len(n.Decls); k > 0 { return n.Decls[k-1].End() }
+	return n.P
+}
+func (n *ConfigurationDecl) unitNode() {}
+
+// BlockConfig is `for spec <uses> <items> end for ;`. Items are *BlockConfig
+// (nested block) or *ComponentConfig (added in Task 2).
+type BlockConfig struct {
+	P     Pos
+	Spec  string // architecture name (top) or block/generate label (nested)
+	Uses  []*UseClause
+	Items []Node
+}
+
+func (n *BlockConfig) Pos() Pos { return n.P }
+func (n *BlockConfig) End() Pos {
+	if k := len(n.Items); k > 0 { return n.Items[k-1].End() }
+	return n.P
+}
+
 // CondWaveform is one `value when cond` arm of a conditional signal assignment.
 // The final `else value` arm has Cond == nil.
 type CondWaveform struct {

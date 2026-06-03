@@ -40,7 +40,48 @@ func printUnit(b *strings.Builder, u DesignUnit) {
 		printEntityDecl(b, n)
 	case *ArchitectureBody:
 		printArchitectureBody(b, n)
+	case *ConfigurationDecl:
+		printConfigurationDecl(b, n)
 	}
+}
+
+func printConfigurationDecl(b *strings.Builder, n *ConfigurationDecl) {
+	b.WriteString("configuration ")
+	b.WriteString(n.Name)
+	b.WriteString(" of ")
+	b.WriteString(n.Entity)
+	b.WriteString(" is\n")
+	for _, u := range n.Decls {
+		b.WriteString("  use ")
+		b.WriteString(strings.Join(u.Names, ", "))
+		b.WriteString(";\n")
+	}
+	if n.Block != nil {
+		printBlockConfig(b, n.Block, "  ")
+	}
+	b.WriteString("end configuration;\n")
+}
+
+func printBlockConfig(b *strings.Builder, n *BlockConfig, indent string) {
+	b.WriteString(indent)
+	b.WriteString("for ")
+	b.WriteString(n.Spec)
+	b.WriteByte('\n')
+	for _, u := range n.Uses {
+		b.WriteString(indent)
+		b.WriteString("  use ")
+		b.WriteString(strings.Join(u.Names, ", "))
+		b.WriteString(";\n")
+	}
+	for _, it := range n.Items {
+		switch c := it.(type) {
+		case *BlockConfig:
+			printBlockConfig(b, c, indent+"  ")
+		}
+		// *ComponentConfig handled in Task 2
+	}
+	b.WriteString(indent)
+	b.WriteString("end for;\n")
 }
 
 func printArchitectureBody(b *strings.Builder, n *ArchitectureBody) {

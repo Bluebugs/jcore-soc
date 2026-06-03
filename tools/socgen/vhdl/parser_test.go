@@ -376,7 +376,9 @@ func TestParseGroupDecls(t *testing.T) {
 }
 
 func TestDeferredUnitTagged(t *testing.T) {
-	_, errs := parse(t, "configuration c of e is\nend configuration;")
+	// An entity statement part (passive statements after `begin`) is still
+	// deferred; it must be tagged with a "deferred" error so the file is excluded.
+	_, errs := parse(t, "entity e is\nbegin\n  assert true;\nend entity;")
 	if len(errs) == 0 {
 		t.Fatal("expected a deferred-unit error")
 	}
@@ -1067,5 +1069,51 @@ end architecture;`
 	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
 	if len(errs2) != 0 || !equalAST(df, df2) {
 		t.Fatalf("procedure call not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
+func TestParseConfigurationBlock(t *testing.T) {
+	// block-only configuration (no component configs): nested blocks + use clause.
+	src := `configuration cfg of e is
+  use work.pkg.all;
+  for rtl
+    for gen_block
+    end for;
+  end for;
+end configuration cfg;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	cfg, ok := df.Units[0].(*ConfigurationDecl)
+	if !ok || cfg.Name != "cfg" || cfg.Entity != "e" || len(cfg.Decls) != 1 || cfg.Block == nil {
+		t.Fatalf("config: %#v", df.Units[0])
+	}
+	if cfg.Block.Spec != "rtl" || len(cfg.Block.Items) != 1 {
+		t.Fatalf("top block: %#v", cfg.Block)
+	}
+	if nb, ok := cfg.Block.Items[0].(*BlockConfig); !ok || nb.Spec != "gen_block" {
+		t.Fatalf("nested block: %#v", cfg.Block.Items[0])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("config not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
+func TestParseConfigurationComponentDeferred(t *testing.T) {
+	// a component configuration is deferred in Task 1.
+	src := `configuration cfg of e is
+  for rtl
+    for all : ram
+      use configuration work.ram_sim;
+    end for;
+  end for;
+end configuration;`
+	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) == 0 {
+		t.Fatal("expected a deferred error for a component configuration")
 	}
 }

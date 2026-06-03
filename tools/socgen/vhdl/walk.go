@@ -57,6 +57,20 @@ func Walk(v Visitor, node Node) {
 		for _, d := range n.Decls {
 			Walk(v, d)
 		}
+	case *ConfigurationDecl:
+		for _, u := range n.Decls {
+			Walk(v, u)
+		}
+		if n.Block != nil {
+			Walk(v, n.Block)
+		}
+	case *BlockConfig:
+		for _, u := range n.Uses {
+			Walk(v, u)
+		}
+		for _, it := range n.Items {
+			Walk(v, it)
+		}
 
 	// statements
 	case *ConcurrentSignalAssign:

@@ -345,14 +345,7 @@ func (p *parser) parseFile() *DesignFile {
 			p.expect(SEMICOLON)
 			df.Context = append(df.Context, &LibraryClause{P: pos, Names: names})
 		case USE:
-			pos := p.advance().Pos // consume USE
-			var names []string
-			names = append(names, p.parseDottedName())
-			for p.accept(COMMA) {
-				names = append(names, p.parseDottedName())
-			}
-			p.expect(SEMICOLON)
-			df.Context = append(df.Context, &UseClause{P: pos, Names: names})
+			df.Context = append(df.Context, p.parseUseClause())
 		}
 	}
 
@@ -381,8 +374,9 @@ func (p *parser) parseFile() *DesignFile {
 				df.Units = append(df.Units, u)
 			}
 		case CONFIGURATION:
-			p.errorf(p.cur().Pos, "deferred: configuration not yet parsed")
-			return df
+			if u := p.parseConfigurationDecl(); u != nil {
+				df.Units = append(df.Units, u)
+			}
 		default:
 			p.errorf(p.cur().Pos, "unexpected token %v %q at top level", p.cur().Kind, p.cur().Lit)
 			return df
@@ -435,6 +429,98 @@ func (p *parser) parseDottedName() string {
 		}
 	}
 	return text
+}
+
+// parseUseClause parses `use name {, name} ;`.
+func (p *parser) parseUseClause() *UseClause {
+	pos := p.expect(USE).Pos
+	names := []string{p.parseDottedName()}
+	for p.accept(COMMA) {
+		names = append(names, p.parseDottedName())
+	}
+	p.expect(SEMICOLON)
+	return &UseClause{P: pos, Names: names}
+}
+
+// parseConfigurationDecl parses `configuration name of entity is <uses> <block>
+// end [configuration] [name] ;`.
+func (p *parser) parseConfigurationDecl() *ConfigurationDecl {
+	pos := p.expect(CONFIGURATION).Pos
+	name := p.expect(IDENT).Lit
+	p.expect(OF)
+	entity := p.parseDottedName()
+	p.expect(IS)
+	var decls []*UseClause
+	for p.at(USE) {
+		decls = append(decls, p.parseUseClause())
+	}
+	var block *BlockConfig
+	if p.at(FOR) {
+		if b, ok := p.parseConfigItem().(*BlockConfig); ok {
+			block = b
+		}
+	}
+	p.expect(END)
+	p.accept(CONFIGURATION)
+	if p.at(IDENT) {
+		p.advance() // optional closing name
+	}
+	p.expect(SEMICOLON)
+	return &ConfigurationDecl{P: pos, Name: name, Entity: entity, Decls: decls, Block: block}
+}
+
+// parseConfigItem parses one `for ...` configuration item: a block configuration
+// (`for label <uses> <items> end for`) or a component configuration (`for
+// inst_list : comp ...` — DEFERRED in Task 1).
+func (p *parser) parseConfigItem() Node {
+	pos := p.expect(FOR).Pos
+	// spec list: name {, name}  (name = IDENT | all | others)
+	specs := []string{p.parseConfigSpecName()}
+	for p.accept(COMMA) {
+		specs = append(specs, p.parseConfigSpecName())
+	}
+	if p.at(COLON) {
+		// component configuration — deferred in Task 1.
+		p.errorf(p.cur().Pos, "deferred: component configuration not yet parsed")
+		return nil
+	}
+	// block configuration: specs[0] is the architecture/block/generate label.
+	spec := ""
+	if len(specs) > 0 {
+		spec = specs[0]
+	}
+	var uses []*UseClause
+	for p.at(USE) {
+		uses = append(uses, p.parseUseClause())
+	}
+	var items []Node
+	for !p.at(END) && !p.at(EOF) {
+		start := p.i
+		if it := p.parseConfigItem(); it != nil {
+			items = append(items, it)
+		}
+		p.ensureProgress(start, "configuration item")
+	}
+	p.expect(END)
+	p.expect(FOR)
+	p.expect(SEMICOLON)
+	return &BlockConfig{P: pos, Spec: spec, Uses: uses, Items: items}
+}
+
+// parseConfigSpecName reads one spec/instantiation name: an identifier or the
+// keywords `all`/`others`.
+func (p *parser) parseConfigSpecName() string {
+	switch p.cur().Kind {
+	case IDENT:
+		return p.advance().Lit
+	case ALL, OTHERS:
+		return p.advance().Kind.String()
+	default:
+		t := p.cur()
+		p.errorf(t.Pos, "expected configuration spec name, got %v %q", t.Kind, t.Lit)
+		p.advance() // ensure progress
+		return ""
+	}
 }
 
 // parsePackageDecl parses: PACKAGE name IS {decl} END [PACKAGE] [name] ;
