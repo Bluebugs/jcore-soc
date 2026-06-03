@@ -232,6 +232,28 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		b.WriteString(indent)
 		b.WriteString("end if;")
+	case *CaseStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("case ")
+		printExpr(b, n.Expr)
+		b.WriteString(" is\n")
+		for _, alt := range n.Alts {
+			b.WriteString(indent)
+			b.WriteString("  when ")
+			for i, c := range alt.Choices {
+				if i > 0 {
+					b.WriteString(" | ")
+				}
+				printExpr(b, c)
+			}
+			b.WriteString(" =>\n")
+			printSeqStmts(b, alt.Stmts, indent+"  ")
+		}
+		b.WriteString(indent)
+		b.WriteString("end case;")
 	}
 }
 

@@ -661,6 +661,43 @@ end architecture;`
 	}
 }
 
+func TestParseCaseStmt(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  process(sel) begin
+    case sel is
+      when "00" =>
+        y <= a;
+      when "01" | "10" =>
+        y <= b;
+      when others =>
+        y <= c;
+    end case;
+  end process;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	pr := df.Units[0].(*ArchitectureBody).Stmts[0].(*ProcessStmt)
+	cs, ok := pr.Stmts[0].(*CaseStmt)
+	if !ok || cs.Expr == nil || len(cs.Alts) != 3 {
+		t.Fatalf("case: %#v", pr.Stmts[0])
+	}
+	if len(cs.Alts[1].Choices) != 2 {
+		t.Fatalf("multi-choice alt: %#v", cs.Alts[1])
+	}
+	if len(cs.Alts[2].Choices) != 1 { // when others
+		t.Fatalf("others alt: %#v", cs.Alts[2])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("case not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
 func TestParseProcessWithWaitDeferred(t *testing.T) {
 	src := `architecture rtl of e is
 begin

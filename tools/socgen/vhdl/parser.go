@@ -717,7 +717,9 @@ func (p *parser) parseSequentialStmt() Stmt {
 		return &NullStmt{P: pos, Label: label}
 	case IF:
 		return p.parseIfStmt(pos, label)
-	case CASE, FOR, WHILE, LOOP, WAIT, REPORT, ASSERT, RETURN, NEXT, EXIT:
+	case CASE:
+		return p.parseCaseStmt(pos, label)
+	case FOR, WHILE, LOOP, WAIT, REPORT, ASSERT, RETURN, NEXT, EXIT:
 		p.errorf(p.cur().Pos, "deferred: %v sequential statement not yet parsed", p.cur().Kind)
 		return nil
 	}
@@ -761,6 +763,39 @@ func (p *parser) atAny(ks []Kind) bool {
 		}
 	}
 	return false
+}
+
+// parseCaseStmt parses `case expr is { when choices => <stmts> } end case [label] ;`.
+func (p *parser) parseCaseStmt(pos Pos, label string) Stmt {
+	p.expect(CASE)
+	expr := p.parseExpr()
+	p.expect(IS)
+	var alts []*CaseAlt
+	for p.at(WHEN) {
+		p.advance() // consume WHEN
+		choices := p.parseChoices()
+		p.expect(ARROW)
+		body := p.parseSeqStmtsUntil(WHEN, END)
+		alts = append(alts, &CaseAlt{Choices: choices, Stmts: body})
+	}
+	p.expect(END)
+	p.expect(CASE)
+	if p.at(IDENT) {
+		p.advance() // optional closing label
+	}
+	p.expect(SEMICOLON)
+	return &CaseStmt{P: pos, Label: label, Expr: expr, Alts: alts}
+}
+
+// parseChoices parses `choice {| choice}` (each choice is an expression; `others`
+// is an Ident, a discrete range is a Range).
+func (p *parser) parseChoices() []Expr {
+	var cs []Expr
+	cs = append(cs, p.parseExpr())
+	for p.accept(BAR) { // each iteration consumes BAR -> always advances
+		cs = append(cs, p.parseExpr())
+	}
+	return cs
 }
 
 // parseIfStmt parses `if cond then <stmts> {elsif cond then <stmts>} [else <stmts>] end if [label] ;`.

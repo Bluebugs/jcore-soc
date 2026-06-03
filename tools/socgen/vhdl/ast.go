@@ -237,6 +237,29 @@ func (n *IfStmt) End() Pos {
 }
 func (n *IfStmt) stmtNode() {}
 
+// CaseAlt is one `when choices => <stmts>` alternative of a CaseStmt.
+type CaseAlt struct {
+	Choices []Expr // an `others` choice is an *Ident{Name:"others"}
+	Stmts   []Stmt
+}
+
+// CaseStmt is `[label:] case expr is { when choices => <stmts> } end case ;`.
+type CaseStmt struct {
+	P     Pos
+	Label string
+	Expr  Expr
+	Alts  []*CaseAlt
+}
+
+func (n *CaseStmt) Pos() Pos { return n.P }
+func (n *CaseStmt) End() Pos {
+	if k := len(n.Alts); k > 0 {
+		if m := len(n.Alts[k-1].Stmts); m > 0 { return n.Alts[k-1].Stmts[m-1].End() }
+	}
+	return n.P
+}
+func (n *CaseStmt) stmtNode() {}
+
 // NullStmt is `[label:] null ;`.
 type NullStmt struct{ P Pos; Label string }
 

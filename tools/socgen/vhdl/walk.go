@@ -114,6 +114,18 @@ func Walk(v Visitor, node Node) {
 		}
 	case *NullStmt:
 		// no child nodes
+	case *CaseStmt:
+		if n.Expr != nil {
+			Walk(v, n.Expr)
+		}
+		for _, alt := range n.Alts {
+			for _, c := range alt.Choices {
+				Walk(v, c)
+			}
+			for _, s := range alt.Stmts {
+				Walk(v, s)
+			}
+		}
 	case *IfStmt:
 		if n.Cond != nil {
 			Walk(v, n.Cond)
