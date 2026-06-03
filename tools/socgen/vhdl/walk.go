@@ -144,6 +144,16 @@ func Walk(v Visitor, node Node) {
 		for _, s := range n.Else {
 			Walk(v, s)
 		}
+	case *LoopStmt:
+		if n.Range != nil {
+			Walk(v, n.Range)
+		}
+		if n.Cond != nil {
+			Walk(v, n.Cond)
+		}
+		for _, s := range n.Stmts {
+			Walk(v, s)
+		}
 
 	// declarations
 	case *ConstantDecl:

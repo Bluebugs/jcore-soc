@@ -710,3 +710,46 @@ end architecture;`
 		t.Fatal("expected a deferred error for a wait statement")
 	}
 }
+
+func TestParseForLoop(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  process(clk) begin
+    for i in 0 to 7 loop
+      acc := acc + i;
+      q <= acc;
+    end loop;
+  end process;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	pr := df.Units[0].(*ArchitectureBody).Stmts[0].(*ProcessStmt)
+	lp, ok := pr.Stmts[0].(*LoopStmt)
+	if !ok || lp.Scheme != FOR || lp.Param != "i" || lp.Range == nil || len(lp.Stmts) != 2 {
+		t.Fatalf("for-loop: %#v", pr.Stmts[0])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("for-loop not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
+func TestParseProcessWithWhileDeferred(t *testing.T) {
+	// while-loops stay deferred in P1d-1.
+	src := `architecture rtl of e is
+begin
+  process begin
+    while x loop
+      x := false;
+    end loop;
+  end process;
+end architecture;`
+	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) == 0 {
+		t.Fatal("expected a deferred error for a while-loop")
+	}
+}

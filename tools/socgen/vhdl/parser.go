@@ -719,7 +719,9 @@ func (p *parser) parseSequentialStmt() Stmt {
 		return p.parseIfStmt(pos, label)
 	case CASE:
 		return p.parseCaseStmt(pos, label)
-	case FOR, WHILE, LOOP, WAIT, REPORT, ASSERT, RETURN, NEXT, EXIT:
+	case FOR:
+		return p.parseForLoop(pos, label)
+	case WHILE, LOOP, WAIT, REPORT, ASSERT, RETURN, NEXT, EXIT:
 		p.errorf(p.cur().Pos, "deferred: %v sequential statement not yet parsed", p.cur().Kind)
 		return nil
 	}
@@ -738,6 +740,23 @@ func (p *parser) parseSequentialStmt() Stmt {
 	}
 	p.errorf(p.cur().Pos, "deferred: sequential statement not yet parsed")
 	return nil
+}
+
+// parseForLoop parses `for id in range loop <stmts> end loop [label] ;`.
+func (p *parser) parseForLoop(pos Pos, label string) Stmt {
+	p.expect(FOR)
+	param := p.expect(IDENT).Lit
+	p.expect(IN)
+	rng := p.parseExpr()
+	p.expect(LOOP)
+	body := p.parseSeqStmtsUntil(END)
+	p.expect(END)
+	p.expect(LOOP)
+	if p.at(IDENT) {
+		p.advance() // optional closing label
+	}
+	p.expect(SEMICOLON)
+	return &LoopStmt{P: pos, Label: label, Scheme: FOR, Param: param, Range: rng, Stmts: body}
 }
 
 // parseSeqStmtsUntil parses sequential statements until the current token is one

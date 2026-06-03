@@ -267,6 +267,25 @@ func (n *NullStmt) Pos() Pos { return n.P }
 func (n *NullStmt) End() Pos { return n.P }
 func (n *NullStmt) stmtNode() {}
 
+// LoopStmt is a loop statement. P1d-1 supports only the for-loop scheme; while
+// and bare loops are deferred. Scheme is FOR (Param+Range set) for now.
+type LoopStmt struct {
+	P      Pos
+	Label  string
+	Scheme Kind // FOR (WHILE / 0 reserved for later)
+	Param  string
+	Range  Expr
+	Cond   Expr // while-loop condition (unused in P1d-1)
+	Stmts  []Stmt
+}
+
+func (n *LoopStmt) Pos() Pos { return n.P }
+func (n *LoopStmt) End() Pos {
+	if k := len(n.Stmts); k > 0 { return n.Stmts[k-1].End() }
+	return n.P
+}
+func (n *LoopStmt) stmtNode() {}
+
 // declarations
 type ConstantDecl  struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
 type SignalDecl    struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }

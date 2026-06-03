@@ -254,6 +254,19 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		b.WriteString(indent)
 		b.WriteString("end case;")
+	case *LoopStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("for ")
+		b.WriteString(n.Param)
+		b.WriteString(" in ")
+		printExpr(b, n.Range)
+		b.WriteString(" loop\n")
+		printSeqStmts(b, n.Stmts, indent)
+		b.WriteString(indent)
+		b.WriteString("end loop;")
 	}
 }
 
