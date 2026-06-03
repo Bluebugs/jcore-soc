@@ -966,3 +966,43 @@ end architecture;`
 		}
 	}
 }
+
+func TestParseAssertReport(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  check : assert x = 1 report "bad" severity error;
+  process begin
+    assert y > 0;
+    assert z = 0 report "z nonzero";
+    report "done" severity note;
+  end process;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	ca, ok := arch.Stmts[0].(*AssertStmt)
+	if !ok || ca.Label != "check" || ca.Cond == nil || ca.Report == nil || ca.Severity == nil {
+		t.Fatalf("concurrent assert: %#v", arch.Stmts[0])
+	}
+	pst := arch.Stmts[1].(*ProcessStmt).Stmts
+	a0 := pst[0].(*AssertStmt)
+	if a0.Cond == nil || a0.Report != nil || a0.Severity != nil {
+		t.Fatalf("seq assert bare: %#v", a0)
+	}
+	a1 := pst[1].(*AssertStmt)
+	if a1.Report == nil || a1.Severity != nil {
+		t.Fatalf("seq assert+report: %#v", a1)
+	}
+	r := pst[2].(*ReportStmt)
+	if r.Report == nil || r.Severity == nil {
+		t.Fatalf("report: %#v", r)
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("assert/report not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

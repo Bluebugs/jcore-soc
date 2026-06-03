@@ -280,6 +280,34 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 			printExpr(b, n.Value)
 		}
 		b.WriteByte(';')
+	case *AssertStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("assert ")
+		printExpr(b, n.Cond)
+		if n.Report != nil {
+			b.WriteString(" report ")
+			printExpr(b, n.Report)
+		}
+		if n.Severity != nil {
+			b.WriteString(" severity ")
+			printExpr(b, n.Severity)
+		}
+		b.WriteByte(';')
+	case *ReportStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("report ")
+		printExpr(b, n.Report)
+		if n.Severity != nil {
+			b.WriteString(" severity ")
+			printExpr(b, n.Severity)
+		}
+		b.WriteByte(';')
 	case *WaitStmt:
 		if n.Label != "" {
 			b.WriteString(n.Label)

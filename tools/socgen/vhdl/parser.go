@@ -580,9 +580,11 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	// statements introduced by a keyword (process/generate/block/...) are
 	// deferred here; entity/component/configuration dispatch to instantiation.
 	switch p.cur().Kind {
-	case BLOCK, ASSERT, WITH, GENERATE:
+	case BLOCK, WITH, GENERATE:
 		p.errorf(p.cur().Pos, "deferred: %v concurrent statement not yet parsed", p.cur().Kind)
 		return nil
+	case ASSERT:
+		return p.parseAssertStmt(pos, label)
 	case POSTPONED, PROCESS:
 		return p.parseProcess(pos, label)
 	case FOR:
@@ -791,7 +793,11 @@ func (p *parser) parseSequentialStmt() Stmt {
 		return &ReturnStmt{P: pos, Label: label, Value: val}
 	case WAIT:
 		return p.parseWaitStmt(pos, label)
-	case WHILE, LOOP, REPORT, ASSERT, NEXT, EXIT:
+	case ASSERT:
+		return p.parseAssertStmt(pos, label)
+	case REPORT:
+		return p.parseReportStmt(pos, label)
+	case WHILE, LOOP, NEXT, EXIT:
 		p.errorf(p.cur().Pos, "deferred: %v sequential statement not yet parsed", p.cur().Kind)
 		return nil
 	}
@@ -848,6 +854,33 @@ func (p *parser) parseWaitStmt(pos Pos, label string) Stmt {
 	}
 	p.expect(SEMICOLON)
 	return &WaitStmt{P: pos, Label: label, On: on, Until: until, For: forExpr}
+}
+
+// parseAssertStmt parses `assert cond [report expr] [severity expr] ;`.
+func (p *parser) parseAssertStmt(pos Pos, label string) Stmt {
+	p.expect(ASSERT)
+	cond := p.parseExpr()
+	var report, severity Expr
+	if p.accept(REPORT) {
+		report = p.parseExpr()
+	}
+	if p.accept(SEVERITY) {
+		severity = p.parseExpr()
+	}
+	p.expect(SEMICOLON)
+	return &AssertStmt{P: pos, Label: label, Cond: cond, Report: report, Severity: severity}
+}
+
+// parseReportStmt parses `report expr [severity expr] ;`.
+func (p *parser) parseReportStmt(pos Pos, label string) Stmt {
+	p.expect(REPORT)
+	report := p.parseExpr()
+	var severity Expr
+	if p.accept(SEVERITY) {
+		severity = p.parseExpr()
+	}
+	p.expect(SEMICOLON)
+	return &ReportStmt{P: pos, Label: label, Report: report, Severity: severity}
 }
 
 // parseSeqStmtsUntil parses sequential statements until the current token is one

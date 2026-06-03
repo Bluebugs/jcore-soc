@@ -172,6 +172,23 @@ func Walk(v Visitor, node Node) {
 		for _, s := range n.Stmts {
 			Walk(v, s)
 		}
+	case *AssertStmt:
+		if n.Cond != nil {
+			Walk(v, n.Cond)
+		}
+		if n.Report != nil {
+			Walk(v, n.Report)
+		}
+		if n.Severity != nil {
+			Walk(v, n.Severity)
+		}
+	case *ReportStmt:
+		if n.Report != nil {
+			Walk(v, n.Report)
+		}
+		if n.Severity != nil {
+			Walk(v, n.Severity)
+		}
 	case *WaitStmt:
 		for _, s := range n.On {
 			Walk(v, s)

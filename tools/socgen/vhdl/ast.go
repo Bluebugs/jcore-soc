@@ -320,6 +320,40 @@ func (n *LoopStmt) End() Pos {
 }
 func (n *LoopStmt) stmtNode() {}
 
+// AssertStmt is `[label:] assert cond [report expr] [severity expr] ;` (sequential or concurrent).
+type AssertStmt struct {
+	P        Pos
+	Label    string
+	Cond     Expr
+	Report   Expr
+	Severity Expr
+}
+
+func (n *AssertStmt) Pos() Pos { return n.P }
+func (n *AssertStmt) End() Pos {
+	if n.Severity != nil { return n.Severity.End() }
+	if n.Report != nil { return n.Report.End() }
+	if n.Cond != nil { return n.Cond.End() }
+	return n.P
+}
+func (n *AssertStmt) stmtNode() {}
+
+// ReportStmt is `[label:] report expr [severity expr] ;` (sequential).
+type ReportStmt struct {
+	P        Pos
+	Label    string
+	Report   Expr
+	Severity Expr
+}
+
+func (n *ReportStmt) Pos() Pos { return n.P }
+func (n *ReportStmt) End() Pos {
+	if n.Severity != nil { return n.Severity.End() }
+	if n.Report != nil { return n.Report.End() }
+	return n.P
+}
+func (n *ReportStmt) stmtNode() {}
+
 // WaitStmt is `[label:] wait [on signals] [until cond] [for time] ;`.
 type WaitStmt struct {
 	P     Pos
