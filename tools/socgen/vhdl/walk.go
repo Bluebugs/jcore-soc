@@ -92,6 +92,28 @@ func Walk(v Visitor, node Node) {
 		for _, s := range n.Stmts {
 			Walk(v, s)
 		}
+	case *ProcessStmt:
+		for _, s := range n.Sensitivity {
+			Walk(v, s)
+		}
+		for _, d := range n.Decls {
+			Walk(v, d)
+		}
+		for _, s := range n.Stmts {
+			Walk(v, s)
+		}
+	case *SignalAssignStmt:
+		Walk(v, n.Target)
+		if n.Waveform != nil {
+			Walk(v, n.Waveform)
+		}
+	case *VariableAssignStmt:
+		Walk(v, n.Target)
+		if n.Value != nil {
+			Walk(v, n.Value)
+		}
+	case *NullStmt:
+		// no child nodes
 
 	// declarations
 	case *ConstantDecl:
@@ -102,6 +124,13 @@ func Walk(v Visitor, node Node) {
 			Walk(v, n.Default)
 		}
 	case *SignalDecl:
+		if n.Constraint != nil {
+			Walk(v, n.Constraint)
+		}
+		if n.Default != nil {
+			Walk(v, n.Default)
+		}
+	case *VariableDecl:
 		if n.Constraint != nil {
 			Walk(v, n.Constraint)
 		}

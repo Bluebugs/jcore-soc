@@ -548,9 +548,11 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	// statements introduced by a keyword (process/generate/block/...) are
 	// deferred here; entity/component/configuration dispatch to instantiation.
 	switch p.cur().Kind {
-	case PROCESS, BLOCK, ASSERT, WITH, POSTPONED, GENERATE:
+	case BLOCK, ASSERT, WITH, GENERATE:
 		p.errorf(p.cur().Pos, "deferred: %v concurrent statement not yet parsed", p.cur().Kind)
 		return nil
+	case POSTPONED, PROCESS:
+		return p.parseProcess(pos, label)
 	case FOR:
 		return p.parseGenerate(pos, label, FOR)
 	case IF:
@@ -655,6 +657,85 @@ func (p *parser) parseGenerate(pos Pos, label string, kind Kind) Stmt {
 	return &GenerateStmt{P: pos, Label: label, Kind: kind, Param: param, Range: rng, Cond: cond, Decls: decls, Stmts: stmts}
 }
 
+// parseProcess parses a process statement (label already consumed).
+func (p *parser) parseProcess(pos Pos, label string) Stmt {
+	postponed := p.accept(POSTPONED)
+	p.expect(PROCESS)
+	var sens []Expr
+	if p.at(LPAREN) {
+		p.advance()
+		if !p.at(RPAREN) {
+			sens = append(sens, p.parseName())
+			for p.accept(COMMA) {
+				sens = append(sens, p.parseName())
+			}
+		}
+		p.expect(RPAREN)
+	}
+	p.accept(IS)
+	var decls []Decl
+	for !p.at(BEGIN) && !p.at(END) && !p.at(EOF) {
+		start := p.i
+		if d := p.parseDecl(); d != nil {
+			decls = append(decls, d)
+		}
+		p.ensureProgress(start, "process declaration")
+	}
+	p.expect(BEGIN)
+	var stmts []Stmt
+	for !p.at(END) && !p.at(EOF) {
+		start := p.i
+		if s := p.parseSequentialStmt(); s != nil {
+			stmts = append(stmts, s)
+		}
+		p.ensureProgress(start, "sequential statement")
+	}
+	p.expect(END)
+	p.accept(POSTPONED)
+	p.expect(PROCESS)
+	if p.at(IDENT) {
+		p.advance() // optional closing label
+	}
+	p.expect(SEMICOLON)
+	return &ProcessStmt{P: pos, Label: label, Postponed: postponed, Sensitivity: sens, Decls: decls, Stmts: stmts}
+}
+
+// parseSequentialStmt parses ONE sequential statement. For P1d-1 Task 1 it
+// supports signal assignment, variable assignment, and `null`; if/case/for and
+// the wait/report/return/loop/next/exit cluster are deferred (file excluded).
+func (p *parser) parseSequentialStmt() Stmt {
+	pos := p.cur().Pos
+	label := ""
+	if p.at(IDENT) && p.peekKind(1) == COLON {
+		label = p.advance().Lit
+		p.advance() // consume COLON
+	}
+	switch p.cur().Kind {
+	case NULL:
+		p.advance()
+		p.expect(SEMICOLON)
+		return &NullStmt{P: pos, Label: label}
+	case IF, CASE, FOR, WHILE, LOOP, WAIT, REPORT, ASSERT, RETURN, NEXT, EXIT:
+		p.errorf(p.cur().Pos, "deferred: %v sequential statement not yet parsed", p.cur().Kind)
+		return nil
+	}
+	target := p.parseName()
+	if p.at(LE) {
+		p.advance() // '<='
+		wave := p.parseExpr()
+		p.expect(SEMICOLON)
+		return &SignalAssignStmt{P: pos, Label: label, Target: target, Waveform: wave}
+	}
+	if p.at(ASSIGN) {
+		p.advance() // ':='
+		val := p.parseExpr()
+		p.expect(SEMICOLON)
+		return &VariableAssignStmt{P: pos, Label: label, Target: target, Value: val}
+	}
+	p.errorf(p.cur().Pos, "deferred: sequential statement not yet parsed")
+	return nil
+}
+
 // isDeclStart reports whether k begins a declaration handled by parseDecl.
 func isDeclStart(k Kind) bool {
 	switch k {
@@ -716,6 +797,8 @@ func (p *parser) parseDecl() Decl {
 		return p.parseConstantOrSignal(true)
 	case SIGNAL:
 		return p.parseConstantOrSignal(false)
+	case VARIABLE:
+		return p.parseVariableDecl()
 	case SUBTYPE:
 		return p.parseSubtypeDecl()
 	case TYPE:
@@ -807,6 +890,20 @@ func (p *parser) parseConstantOrSignal(isConst bool) Decl {
 		return &ConstantDecl{P: pos, Names: names, SubtypeMark: mark, Constraint: constraint, Default: def}
 	}
 	return &SignalDecl{P: pos, Names: names, SubtypeMark: mark, Constraint: constraint, Default: def}
+}
+
+// parseVariableDecl parses `variable names : subtype [:= default] ;`.
+func (p *parser) parseVariableDecl() Decl {
+	pos := p.expect(VARIABLE).Pos
+	names := p.parseNameList()
+	p.expect(COLON)
+	mark, constraint := p.parseSubtypeIndication()
+	var def Expr
+	if p.accept(ASSIGN) {
+		def = p.parseExpr()
+	}
+	p.expect(SEMICOLON)
+	return &VariableDecl{P: pos, Names: names, SubtypeMark: mark, Constraint: constraint, Default: def}
 }
 
 // parseSubtypeDecl parses: SUBTYPE id IS subtype-indication ;

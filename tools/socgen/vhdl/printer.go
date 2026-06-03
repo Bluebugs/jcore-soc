@@ -149,6 +149,66 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		b.WriteString(indent)
 		b.WriteString("end generate;")
+	case *ProcessStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		if n.Postponed {
+			b.WriteString("postponed ")
+		}
+		b.WriteString("process")
+		if len(n.Sensitivity) > 0 {
+			b.WriteString(" (")
+			for i, s := range n.Sensitivity {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				printExpr(b, s)
+			}
+			b.WriteByte(')')
+		}
+		b.WriteByte('\n')
+		for _, d := range n.Decls {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			printDecl(b, d, indent+"  ")
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent)
+		b.WriteString("begin\n")
+		for _, s := range n.Stmts {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			printStmt(b, s, indent+"  ")
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent)
+		b.WriteString("end process;")
+	case *SignalAssignStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		printExpr(b, n.Target)
+		b.WriteString(" <= ")
+		printExpr(b, n.Waveform)
+		b.WriteByte(';')
+	case *VariableAssignStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		printExpr(b, n.Target)
+		b.WriteString(" := ")
+		printExpr(b, n.Value)
+		b.WriteByte(';')
+	case *NullStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("null;")
 	}
 }
 
@@ -247,6 +307,16 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 		b.WriteByte(';')
 	case *SignalDecl:
 		b.WriteString("signal ")
+		b.WriteString(strings.Join(n.Names, ", "))
+		b.WriteString(" : ")
+		printSubtypeIndication(b, n.SubtypeMark, n.Constraint)
+		if n.Default != nil {
+			b.WriteString(" := ")
+			printExpr(b, n.Default)
+		}
+		b.WriteByte(';')
+	case *VariableDecl:
+		b.WriteString("variable ")
 		b.WriteString(strings.Join(n.Names, ", "))
 		b.WriteString(" : ")
 		printSubtypeIndication(b, n.SubtypeMark, n.Constraint)

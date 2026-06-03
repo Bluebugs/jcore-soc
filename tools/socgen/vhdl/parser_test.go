@@ -466,25 +466,6 @@ end architecture rtl;`
 	}
 }
 
-func TestParseArchitectureWithProcessDeferred(t *testing.T) {
-	src := `architecture rtl of e is
-begin
-  process(clk) begin x <= a; end process;
-end architecture;`
-	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
-	if len(errs) == 0 {
-		t.Fatal("expected a deferred error for a process")
-	}
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e.Error(), "deferred") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("want a 'deferred' error, got %v", errs)
-	}
-}
 
 func TestParseConditionalAssign(t *testing.T) {
 	src := `architecture rtl of e is
@@ -603,5 +584,58 @@ end architecture;`
 	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
 	if len(errs2) != 0 || !equalAST(df, df2) {
 		t.Fatalf("generate not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
+func TestParseProcessSimple(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  proc : process(clk, rst)
+    variable tmp : std_logic;
+  begin
+    q <= d;
+    tmp := a;
+    null;
+  end process proc;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	pr, ok := arch.Stmts[0].(*ProcessStmt)
+	if !ok || pr.Label != "proc" || len(pr.Sensitivity) != 2 || len(pr.Decls) != 1 || len(pr.Stmts) != 3 {
+		t.Fatalf("process: %#v", arch.Stmts[0])
+	}
+	if _, ok := pr.Decls[0].(*VariableDecl); !ok {
+		t.Fatalf("var decl: %#v", pr.Decls[0])
+	}
+	if _, ok := pr.Stmts[0].(*SignalAssignStmt); !ok {
+		t.Fatalf("sig assign: %#v", pr.Stmts[0])
+	}
+	if _, ok := pr.Stmts[1].(*VariableAssignStmt); !ok {
+		t.Fatalf("var assign: %#v", pr.Stmts[1])
+	}
+	if _, ok := pr.Stmts[2].(*NullStmt); !ok {
+		t.Fatalf("null: %#v", pr.Stmts[2])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("process not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
+func TestParseProcessWithIfDeferred(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  process(clk) begin
+    if rst = '1' then q <= '0'; end if;
+  end process;
+end architecture;`
+	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) == 0 {
+		t.Fatal("expected a deferred error for an if statement")
 	}
 }

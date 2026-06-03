@@ -167,6 +167,56 @@ func (n *GenerateStmt) End() Pos {
 }
 func (n *GenerateStmt) stmtNode() {}
 
+// VariableDecl is `variable names : subtype [:= default] ;` (process/subprogram local).
+type VariableDecl struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
+
+func (n *VariableDecl) Pos() Pos { return n.P }
+func (n *VariableDecl) End() Pos {
+	if n.Default != nil { return n.Default.End() }
+	if n.Constraint != nil { return n.Constraint.End() }
+	return n.P
+}
+func (n *VariableDecl) declNode() {}
+
+// ProcessStmt is `[postponed] process [(sensitivity)] [is] <decls> begin <stmts> end process ;`.
+type ProcessStmt struct {
+	P           Pos
+	Label       string
+	Postponed   bool
+	Sensitivity []Expr
+	Decls       []Decl
+	Stmts       []Stmt
+}
+
+func (n *ProcessStmt) Pos() Pos { return n.P }
+func (n *ProcessStmt) End() Pos {
+	if k := len(n.Stmts); k > 0 { return n.Stmts[k-1].End() }
+	if k := len(n.Decls); k > 0 { return n.Decls[k-1].End() }
+	return n.P
+}
+func (n *ProcessStmt) stmtNode() {}
+
+// SignalAssignStmt is a sequential `[label:] target <= waveform ;`.
+type SignalAssignStmt struct{ P Pos; Label string; Target Expr; Waveform Expr }
+
+func (n *SignalAssignStmt) Pos() Pos { return n.P }
+func (n *SignalAssignStmt) End() Pos { if n.Waveform != nil { return n.Waveform.End() }; return n.Target.End() }
+func (n *SignalAssignStmt) stmtNode() {}
+
+// VariableAssignStmt is `[label:] target := value ;`.
+type VariableAssignStmt struct{ P Pos; Label string; Target Expr; Value Expr }
+
+func (n *VariableAssignStmt) Pos() Pos { return n.P }
+func (n *VariableAssignStmt) End() Pos { if n.Value != nil { return n.Value.End() }; return n.Target.End() }
+func (n *VariableAssignStmt) stmtNode() {}
+
+// NullStmt is `[label:] null ;`.
+type NullStmt struct{ P Pos; Label string }
+
+func (n *NullStmt) Pos() Pos { return n.P }
+func (n *NullStmt) End() Pos { return n.P }
+func (n *NullStmt) stmtNode() {}
+
 // declarations
 type ConstantDecl  struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
 type SignalDecl    struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }
