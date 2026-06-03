@@ -116,6 +116,39 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 			b.WriteByte(')')
 		}
 		b.WriteByte(';')
+	case *GenerateStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		if n.Kind == FOR {
+			b.WriteString("for ")
+			b.WriteString(n.Param)
+			b.WriteString(" in ")
+			printExpr(b, n.Range)
+		} else {
+			b.WriteString("if ")
+			printExpr(b, n.Cond)
+		}
+		b.WriteString(" generate\n")
+		for _, d := range n.Decls {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			printDecl(b, d, indent+"  ")
+			b.WriteByte('\n')
+		}
+		if len(n.Decls) > 0 {
+			b.WriteString(indent)
+			b.WriteString("begin\n")
+		}
+		for _, s := range n.Stmts {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			printStmt(b, s, indent+"  ")
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent)
+		b.WriteString("end generate;")
 	}
 }
 

@@ -568,3 +568,40 @@ end architecture;`
 		t.Fatalf("instantiation not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
+
+func TestParseGenerate(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  g0 : for i in 0 to 3 generate
+    u : entity work.cell port map (clk => clk);
+  end generate g0;
+  g1 : if use_fifo generate
+    f : entity work.fifo port map (clk => clk);
+  end generate;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	if len(arch.Stmts) != 2 {
+		t.Fatalf("stmts: %d", len(arch.Stmts))
+	}
+	g0, ok := arch.Stmts[0].(*GenerateStmt)
+	if !ok || g0.Kind != FOR || g0.Label != "g0" || g0.Param != "i" || g0.Range == nil || len(g0.Stmts) != 1 {
+		t.Fatalf("g0: %#v", arch.Stmts[0])
+	}
+	if _, ok := g0.Stmts[0].(*InstantiationStmt); !ok {
+		t.Fatalf("g0 body: %#v", g0.Stmts[0])
+	}
+	g1, ok := arch.Stmts[1].(*GenerateStmt)
+	if !ok || g1.Kind != IF || g1.Cond == nil || len(g1.Stmts) != 1 {
+		t.Fatalf("g1: %#v", arch.Stmts[1])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("generate not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

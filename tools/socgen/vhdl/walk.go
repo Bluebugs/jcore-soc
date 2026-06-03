@@ -79,6 +79,19 @@ func Walk(v Visitor, node Node) {
 		if n.Actual != nil {
 			Walk(v, n.Actual)
 		}
+	case *GenerateStmt:
+		if n.Range != nil {
+			Walk(v, n.Range)
+		}
+		if n.Cond != nil {
+			Walk(v, n.Cond)
+		}
+		for _, d := range n.Decls {
+			Walk(v, d)
+		}
+		for _, s := range n.Stmts {
+			Walk(v, s)
+		}
 
 	// declarations
 	case *ConstantDecl:

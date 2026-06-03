@@ -76,7 +76,7 @@ func (n *ArchitectureBody) End() Pos {
 func (n *ArchitectureBody) unitNode() {}
 
 // CondWaveform is one `value when cond` arm of a conditional signal assignment.
-// The final `else value` arm has Cond == nil. (Populated in a later task.)
+// The final `else value` arm has Cond == nil.
 type CondWaveform struct {
 	Value Expr
 	Cond  Expr
@@ -142,6 +142,30 @@ func (n *InstantiationStmt) End() Pos {
 	return n.P
 }
 func (n *InstantiationStmt) stmtNode() {}
+
+// GenerateStmt is `label : (for id in range | if cond) generate [decls begin] stmts end generate ;`.
+type GenerateStmt struct {
+	P     Pos
+	Label string
+	Kind  Kind   // FOR or IF
+	Param string // for-generate loop parameter ("" for if-generate)
+	Range Expr   // for-generate discrete range
+	Cond  Expr   // if-generate condition
+	Decls []Decl
+	Stmts []Stmt
+}
+
+func (n *GenerateStmt) Pos() Pos { return n.P }
+func (n *GenerateStmt) End() Pos {
+	if k := len(n.Stmts); k > 0 {
+		return n.Stmts[k-1].End()
+	}
+	if k := len(n.Decls); k > 0 {
+		return n.Decls[k-1].End()
+	}
+	return n.P
+}
+func (n *GenerateStmt) stmtNode() {}
 
 // declarations
 type ConstantDecl  struct{ P Pos; Names []string; SubtypeMark string; Constraint Expr; Default Expr }

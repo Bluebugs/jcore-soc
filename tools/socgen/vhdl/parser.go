@@ -548,9 +548,13 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	// statements introduced by a keyword (process/generate/block/...) are
 	// deferred here; entity/component/configuration dispatch to instantiation.
 	switch p.cur().Kind {
-	case PROCESS, GENERATE, BLOCK, FOR, IF, ASSERT, WITH, POSTPONED:
+	case PROCESS, BLOCK, ASSERT, WITH, POSTPONED, GENERATE:
 		p.errorf(p.cur().Pos, "deferred: %v concurrent statement not yet parsed", p.cur().Kind)
 		return nil
+	case FOR:
+		return p.parseGenerate(pos, label, FOR)
+	case IF:
+		return p.parseGenerate(pos, label, IF)
 	case ENTITY:
 		p.advance()
 		unit := p.parseDottedName()
@@ -604,6 +608,60 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	}
 	p.errorf(p.cur().Pos, "deferred: concurrent statement not yet parsed")
 	return nil
+}
+
+// parseGenerate parses a for/if generate statement (label already consumed).
+//
+//	for id in range generate [decls begin] stmts end generate [label] ;
+//	if cond generate          [decls begin] stmts end generate [label] ;
+func (p *parser) parseGenerate(pos Pos, label string, kind Kind) Stmt {
+	var param string
+	var rng, cond Expr
+	if kind == FOR {
+		p.advance() // consume FOR
+		param = p.expect(IDENT).Lit
+		p.expect(IN)
+		rng = p.parseExpr()
+	} else {
+		p.advance() // consume IF
+		cond = p.parseExpr()
+	}
+	p.expect(GENERATE)
+	// optional declarative part (present iff a `begin` follows it)
+	var decls []Decl
+	for isDeclStart(p.cur().Kind) {
+		start := p.i
+		if d := p.parseDecl(); d != nil {
+			decls = append(decls, d)
+		}
+		p.ensureProgress(start, "generate declaration")
+	}
+	p.accept(BEGIN) // consume `begin` if present
+	// concurrent statement part (recursive)
+	var stmts []Stmt
+	for !p.at(END) && !p.at(EOF) {
+		start := p.i
+		if s := p.parseConcurrentStmt(); s != nil {
+			stmts = append(stmts, s)
+		}
+		p.ensureProgress(start, "generate statement")
+	}
+	p.expect(END)
+	p.expect(GENERATE)
+	if p.at(IDENT) {
+		p.advance() // optional closing label
+	}
+	p.expect(SEMICOLON)
+	return &GenerateStmt{P: pos, Label: label, Kind: kind, Param: param, Range: rng, Cond: cond, Decls: decls, Stmts: stmts}
+}
+
+// isDeclStart reports whether k begins a declaration handled by parseDecl.
+func isDeclStart(k Kind) bool {
+	switch k {
+	case CONSTANT, SIGNAL, SUBTYPE, TYPE, COMPONENT, FUNCTION, PROCEDURE, PURE, IMPURE, ATTRIBUTE, ALIAS, GROUP:
+		return true
+	}
+	return false
 }
 
 // finishInstantiation parses the optional generic/port maps and the terminating
