@@ -1103,17 +1103,44 @@ end configuration cfg;`
 	}
 }
 
-func TestParseConfigurationComponentDeferred(t *testing.T) {
-	// a component configuration is deferred in Task 1.
+func TestParseComponentConfiguration(t *testing.T) {
 	src := `configuration cfg of e is
   for rtl
     for all : ram
       use configuration work.ram_sim;
     end for;
+    for u0 : comp
+      use entity work.ent(rtl) port map (clk => clk, q => open);
+    end for;
+    for others : cache
+      use entity work.cache_impl;
+    end for;
   end for;
 end configuration;`
-	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
-	if len(errs) == 0 {
-		t.Fatal("expected a deferred error for a component configuration")
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	top := df.Units[0].(*ConfigurationDecl).Block
+	if len(top.Items) != 3 {
+		t.Fatalf("items: %d", len(top.Items))
+	}
+	c0, ok := top.Items[0].(*ComponentConfig)
+	if !ok || len(c0.Insts) != 1 || c0.Insts[0] != "all" || c0.Comp != "ram" || c0.Binding == nil || c0.Binding.UnitKind != CONFIGURATION || c0.Binding.Unit != "work.ram_sim" {
+		t.Fatalf("c0: %#v", top.Items[0])
+	}
+	c1, ok := top.Items[1].(*ComponentConfig)
+	if !ok || c1.Insts[0] != "u0" || c1.Binding.UnitKind != ENTITY || c1.Binding.Arch != "rtl" || len(c1.Binding.PortMap) != 2 {
+		t.Fatalf("c1: %#v", top.Items[1])
+	}
+	c2 := top.Items[2].(*ComponentConfig)
+	if c2.Insts[0] != "others" || c2.Binding.UnitKind != ENTITY || c2.Binding.Arch != "" {
+		t.Fatalf("c2: %#v", top.Items[2])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("component config not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }

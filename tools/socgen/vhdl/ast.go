@@ -117,6 +117,40 @@ func (n *BlockConfig) End() Pos {
 	return n.P
 }
 
+// ComponentConfig is `for inst_list : comp [binding;] [block_config] end for ;`.
+type ComponentConfig struct {
+	P       Pos
+	Insts   []string // instantiation labels, or "all" / "others"
+	Comp    string
+	Binding *BindingIndication
+	Block   *BlockConfig
+}
+
+func (n *ComponentConfig) Pos() Pos { return n.P }
+func (n *ComponentConfig) End() Pos {
+	if n.Block != nil { return n.Block.End() }
+	if n.Binding != nil { return n.Binding.End() }
+	return n.P
+}
+
+// BindingIndication is `use (entity name[(arch)] | configuration name | open)
+// [generic map (...)] [port map (...)]`.
+type BindingIndication struct {
+	P          Pos
+	UnitKind   Kind // ENTITY | CONFIGURATION | OPEN
+	Unit       string
+	Arch       string
+	GenericMap []*AssocElement
+	PortMap    []*AssocElement
+}
+
+func (n *BindingIndication) Pos() Pos { return n.P }
+func (n *BindingIndication) End() Pos {
+	if k := len(n.PortMap); k > 0 { return n.PortMap[k-1].End() }
+	if k := len(n.GenericMap); k > 0 { return n.GenericMap[k-1].End() }
+	return n.P
+}
+
 // CondWaveform is one `value when cond` arm of a conditional signal assignment.
 // The final `else value` arm has Cond == nil.
 type CondWaveform struct {

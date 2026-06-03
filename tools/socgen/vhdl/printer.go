@@ -77,11 +77,61 @@ func printBlockConfig(b *strings.Builder, n *BlockConfig, indent string) {
 		switch c := it.(type) {
 		case *BlockConfig:
 			printBlockConfig(b, c, indent+"  ")
+		case *ComponentConfig:
+			printComponentConfig(b, c, indent+"  ")
 		}
-		// *ComponentConfig handled in Task 2
 	}
 	b.WriteString(indent)
 	b.WriteString("end for;\n")
+}
+
+func printComponentConfig(b *strings.Builder, n *ComponentConfig, indent string) {
+	b.WriteString(indent)
+	b.WriteString("for ")
+	b.WriteString(strings.Join(n.Insts, ", "))
+	b.WriteString(" : ")
+	b.WriteString(n.Comp)
+	b.WriteByte('\n')
+	if n.Binding != nil {
+		b.WriteString(indent)
+		b.WriteString("  ")
+		printBindingIndication(b, n.Binding)
+		b.WriteString(";\n")
+	}
+	if n.Block != nil {
+		printBlockConfig(b, n.Block, indent+"  ")
+	}
+	b.WriteString(indent)
+	b.WriteString("end for;\n")
+}
+
+func printBindingIndication(b *strings.Builder, n *BindingIndication) {
+	b.WriteString("use ")
+	switch n.UnitKind {
+	case ENTITY:
+		b.WriteString("entity ")
+		b.WriteString(n.Unit)
+		if n.Arch != "" {
+			b.WriteByte('(')
+			b.WriteString(n.Arch)
+			b.WriteByte(')')
+		}
+	case CONFIGURATION:
+		b.WriteString("configuration ")
+		b.WriteString(n.Unit)
+	case OPEN:
+		b.WriteString("open")
+	}
+	if len(n.GenericMap) > 0 {
+		b.WriteString(" generic map (")
+		printAssocList(b, n.GenericMap)
+		b.WriteByte(')')
+	}
+	if len(n.PortMap) > 0 {
+		b.WriteString(" port map (")
+		printAssocList(b, n.PortMap)
+		b.WriteByte(')')
+	}
 }
 
 func printArchitectureBody(b *strings.Builder, n *ArchitectureBody) {

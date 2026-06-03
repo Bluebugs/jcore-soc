@@ -480,9 +480,23 @@ func (p *parser) parseConfigItem() Node {
 		specs = append(specs, p.parseConfigSpecName())
 	}
 	if p.at(COLON) {
-		// component configuration — deferred in Task 1.
-		p.errorf(p.cur().Pos, "deferred: component configuration not yet parsed")
-		return nil
+		// component configuration: `for inst_list : comp [binding;] [block] end for ;`
+		p.advance() // consume COLON
+		comp := p.parseDottedName()
+		var binding *BindingIndication
+		if p.at(USE) {
+			binding = p.parseBindingIndication()
+		}
+		var block *BlockConfig
+		if p.at(FOR) {
+			if b, ok := p.parseConfigItem().(*BlockConfig); ok {
+				block = b
+			}
+		}
+		p.expect(END)
+		p.expect(FOR)
+		p.expect(SEMICOLON)
+		return &ComponentConfig{P: pos, Insts: specs, Comp: comp, Binding: binding, Block: block}
 	}
 	// block configuration: specs[0] is the architecture/block/generate label.
 	spec := ""
@@ -505,6 +519,48 @@ func (p *parser) parseConfigItem() Node {
 	p.expect(FOR)
 	p.expect(SEMICOLON)
 	return &BlockConfig{P: pos, Spec: spec, Uses: uses, Items: items}
+}
+
+// parseBindingIndication parses `use (entity name[(arch)] | configuration name |
+// open) [generic map (...)] [port map (...)] ;`.
+func (p *parser) parseBindingIndication() *BindingIndication {
+	pos := p.expect(USE).Pos
+	var kind Kind
+	var unit, arch string
+	switch p.cur().Kind {
+	case ENTITY:
+		p.advance()
+		unit = p.parseDottedName()
+		if p.at(LPAREN) {
+			p.advance()
+			arch = p.expect(IDENT).Lit
+			p.expect(RPAREN)
+		}
+		kind = ENTITY
+	case CONFIGURATION:
+		p.advance()
+		unit = p.parseDottedName()
+		kind = CONFIGURATION
+	case OPEN:
+		p.advance()
+		kind = OPEN
+	default:
+		t := p.cur()
+		p.errorf(t.Pos, "expected entity/configuration/open in binding, got %v %q", t.Kind, t.Lit)
+	}
+	var gmap, pmap []*AssocElement
+	if p.at(GENERIC) {
+		p.advance()
+		p.expect(MAP)
+		gmap = p.parseAssocList()
+	}
+	if p.at(PORT) {
+		p.advance()
+		p.expect(MAP)
+		pmap = p.parseAssocList()
+	}
+	p.expect(SEMICOLON)
+	return &BindingIndication{P: pos, UnitKind: kind, Unit: unit, Arch: arch, GenericMap: gmap, PortMap: pmap}
 }
 
 // parseConfigSpecName reads one spec/instantiation name: an identifier or the

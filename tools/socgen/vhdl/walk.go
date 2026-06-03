@@ -71,6 +71,20 @@ func Walk(v Visitor, node Node) {
 		for _, it := range n.Items {
 			Walk(v, it)
 		}
+	case *ComponentConfig:
+		if n.Binding != nil {
+			Walk(v, n.Binding)
+		}
+		if n.Block != nil {
+			Walk(v, n.Block)
+		}
+	case *BindingIndication:
+		for _, e := range n.GenericMap {
+			Walk(v, e)
+		}
+		for _, e := range n.PortMap {
+			Walk(v, e)
+		}
 
 	// statements
 	case *ConcurrentSignalAssign:
