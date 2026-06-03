@@ -73,8 +73,18 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		b.WriteString(" <= ")
 		if n.Waveform != nil {
 			printExpr(b, n.Waveform)
+		} else {
+			for i, c := range n.Conds {
+				if i > 0 {
+					b.WriteString(" else ")
+				}
+				printExpr(b, c.Value)
+				if c.Cond != nil {
+					b.WriteString(" when ")
+					printExpr(b, c.Cond)
+				}
+			}
 		}
-		// (conditional Conds form is added in a later task)
 		b.WriteByte(';')
 	case *InstantiationStmt:
 		if n.Label != "" {

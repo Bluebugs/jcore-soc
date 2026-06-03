@@ -486,6 +486,41 @@ end architecture;`
 	}
 }
 
+func TestParseConditionalAssign(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  q <= a when sel = '1' else b;
+  r <= x when c1 else y when c2 else z;
+  s <= d;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	q := arch.Stmts[0].(*ConcurrentSignalAssign)
+	if q.Waveform != nil || len(q.Conds) != 2 {
+		t.Fatalf("q conds: %#v", q)
+	}
+	if q.Conds[0].Cond == nil || q.Conds[1].Cond != nil { // last arm is the bare else
+		t.Fatalf("q cond shape: %#v", q.Conds)
+	}
+	r := arch.Stmts[1].(*ConcurrentSignalAssign)
+	if len(r.Conds) != 3 {
+		t.Fatalf("r conds: %d", len(r.Conds))
+	}
+	s := arch.Stmts[2].(*ConcurrentSignalAssign)
+	if s.Waveform == nil || len(s.Conds) != 0 { // simple assignment unchanged
+		t.Fatalf("s simple: %#v", s)
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("conditional assign not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
+
 func TestParseInstantiation(t *testing.T) {
 	src := `architecture rtl of e is
 begin
