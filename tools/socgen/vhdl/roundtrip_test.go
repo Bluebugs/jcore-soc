@@ -47,7 +47,7 @@ func TestCorpusRoundTrip(t *testing.T) {
 	if len(rels) == 0 {
 		t.Fatal("empty p1b_corpus.txt")
 	}
-	t.Logf("P1b corpus: %d declaration-only files round-trip", len(rels))
+	t.Logf("corpus: %d of 241 files round-trip", len(rels))
 	for _, rel := range rels {
 		t.Run(rel, func(t *testing.T) {
 			src, err := os.ReadFile(filepath.Join(root, rel))
