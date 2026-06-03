@@ -782,3 +782,46 @@ end architecture;`
 		t.Fatalf("return not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
+
+func TestParseSubprogramBody(t *testing.T) {
+	src := `architecture rtl of e is
+  function inc(x : integer) return integer is
+    variable y : integer;
+  begin
+    y := x + 1;
+    return y;
+  end function inc;
+  procedure clr(signal s : out std_logic) is
+  begin
+    s <= '0';
+  end procedure;
+begin
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	if len(arch.Decls) != 2 {
+		t.Fatalf("decls: %d", len(arch.Decls))
+	}
+	fb, ok := arch.Decls[0].(*SubprogramBody)
+	if !ok || fb.IsProcedure || fb.Designator != "inc" || fb.ReturnMark != "integer" || len(fb.Decls) != 1 || len(fb.Stmts) != 2 {
+		t.Fatalf("function body: %#v", arch.Decls[0])
+	}
+	pb, ok := arch.Decls[1].(*SubprogramBody)
+	if !ok || !pb.IsProcedure || pb.Designator != "clr" || len(pb.Stmts) != 1 {
+		t.Fatalf("procedure body: %#v", arch.Decls[1])
+	}
+	// a spec-only declaration (no `is`) still yields a *SubprogramDecl
+	dss := parseDecls(t, `function f return integer;`)
+	if _, ok := dss[0].(*SubprogramDecl); !ok {
+		t.Fatalf("spec-only should be SubprogramDecl: %#v", dss[0])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("subprogram body not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

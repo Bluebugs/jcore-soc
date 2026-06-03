@@ -299,7 +299,7 @@ type SignalDecl    struct{ P Pos; Names []string; SubtypeMark string; Constraint
 type SubtypeDecl   struct{ P Pos; Name string; SubtypeMark string; Constraint Expr }
 type TypeDecl      struct{ P Pos; Name string; Def TypeDef }
 type ComponentDecl struct{ P Pos; Name string; Generics []*InterfaceDecl; Ports []*InterfaceDecl }
-type InterfaceDecl struct{ P Pos; Names []string; Mode string; SubtypeMark string; Constraint Expr; Default Expr } // Mode: "" | "in" | "out" | "inout" | "buffer"
+type InterfaceDecl struct{ P Pos; ObjClass string; Names []string; Mode string; SubtypeMark string; Constraint Expr; Default Expr } // ObjClass: "" | "constant" | "signal" | "variable"; Mode: "" | "in" | "out" | "inout" | "buffer"
 
 // SubprogramDecl is a function/procedure specification (declaration). Bodies are
 // deferred. Designator is an identifier or a string-literal operator symbol.
@@ -351,6 +351,27 @@ func (n *SubprogramDecl) End() Pos {
 	}
 	return n.P
 }
+
+// SubprogramBody is a function/procedure body: spec `is <decls> begin <stmts> end ;`.
+type SubprogramBody struct {
+	P           Pos
+	IsProcedure bool
+	Pure        bool
+	Impure      bool
+	Designator  string
+	Params      []*InterfaceDecl
+	ReturnMark  string
+	Decls       []Decl
+	Stmts       []Stmt
+}
+
+func (n *SubprogramBody) Pos() Pos { return n.P }
+func (n *SubprogramBody) End() Pos {
+	if k := len(n.Stmts); k > 0 { return n.Stmts[k-1].End() }
+	if k := len(n.Decls); k > 0 { return n.Decls[k-1].End() }
+	return n.P
+}
+func (n *SubprogramBody) declNode() {}
 
 // AliasDecl is `alias name [: subtype_indication] is target ;`. SubtypeMark is ""
 // when no subtype indication is present. Target is the aliased name expression.

@@ -700,9 +700,9 @@ func (p *parser) parseProcess(pos Pos, label string) Stmt {
 	return &ProcessStmt{P: pos, Label: label, Postponed: postponed, Sensitivity: sens, Decls: decls, Stmts: stmts}
 }
 
-// parseSequentialStmt parses ONE sequential statement. For P1d-1 Task 1 it
-// supports signal assignment, variable assignment, and `null`; if/case/for and
-// the wait/report/return/loop/next/exit cluster are deferred (file excluded).
+// parseSequentialStmt parses ONE sequential statement. It supports
+// if/case/for/return/assignment/null; the wait/report/assert/while/loop/next/exit
+// cluster is deferred (file excluded).
 func (p *parser) parseSequentialStmt() Stmt {
 	pos := p.cur().Pos
 	label := ""
@@ -941,7 +941,9 @@ func (p *parser) parseDecl() Decl {
 //	[pure|impure] function designator [(params)] return mark ;
 //	procedure designator [(params)] ;
 //
-// A body (`... is ...`) is deferred.
+// When `is` follows the spec, it parses a subprogram body (declarations,
+// `begin`, sequential statements, `end`) and returns a *SubprogramBody;
+// otherwise it returns a spec-only *SubprogramDecl.
 func (p *parser) parseSubprogramDecl() Decl {
 	pos := p.cur().Pos
 	var pure, impure bool
@@ -980,12 +982,25 @@ func (p *parser) parseSubprogramDecl() Decl {
 	}
 	d := &SubprogramDecl{P: pos, IsProcedure: isProc, Pure: pure, Impure: impure, Designator: desig, Params: params, ReturnMark: ret}
 	if p.at(IS) {
-		// Subprogram body: deferred in this phase. The `is` and body tokens are
-		// left unconsumed; the enclosing declarative loop's ensureProgress skips
-		// them (with further errors), so files containing subprogram bodies are
-		// excluded from round-trip rather than parsed. TODO: parse bodies in P1d.
-		p.errorf(p.cur().Pos, "deferred: subprogram body not yet parsed")
-		return d
+		p.advance() // consume IS
+		var decls []Decl
+		for !p.at(BEGIN) && !p.at(END) && !p.at(EOF) {
+			start := p.i
+			if dd := p.parseDecl(); dd != nil {
+				decls = append(decls, dd)
+			}
+			p.ensureProgress(start, "subprogram declaration")
+		}
+		p.expect(BEGIN)
+		stmts := p.parseSeqStmtsUntil(END)
+		p.expect(END)
+		p.accept(FUNCTION)  // optional kind keyword in `end function`/`end procedure`
+		p.accept(PROCEDURE)
+		if p.at(IDENT) || p.at(STRINGLIT) {
+			p.advance() // optional closing designator
+		}
+		p.expect(SEMICOLON)
+		return &SubprogramBody{P: pos, IsProcedure: isProc, Pure: pure, Impure: impure, Designator: desig, Params: params, ReturnMark: ret, Decls: decls, Stmts: stmts}
 	}
 	p.expect(SEMICOLON)
 	return d
@@ -1156,6 +1171,20 @@ func (p *parser) parseInterfaceList() []*InterfaceDecl {
 // parseInterfaceDecl parses: name-list : [mode] subtype-indication [:= expr]
 func (p *parser) parseInterfaceDecl() *InterfaceDecl {
 	pos := p.cur().Pos
+	// Optional object-class prefix on a (subprogram) interface element:
+	// constant/signal/variable. Captured so round-trip is faithful.
+	objClass := ""
+	switch p.cur().Kind {
+	case CONSTANT:
+		objClass = "constant"
+		p.advance()
+	case SIGNAL:
+		objClass = "signal"
+		p.advance()
+	case VARIABLE:
+		objClass = "variable"
+		p.advance()
+	}
 	names := p.parseNameList()
 	p.expect(COLON)
 
@@ -1184,7 +1213,7 @@ func (p *parser) parseInterfaceDecl() *InterfaceDecl {
 	if p.accept(ASSIGN) {
 		def = p.parseExpr()
 	}
-	return &InterfaceDecl{P: pos, Names: names, Mode: mode, SubtypeMark: mark, Constraint: constraint, Default: def}
+	return &InterfaceDecl{P: pos, ObjClass: objClass, Names: names, Mode: mode, SubtypeMark: mark, Constraint: constraint, Default: def}
 }
 
 // parseNameList parses: id {, id}

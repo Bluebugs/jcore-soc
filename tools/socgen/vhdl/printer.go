@@ -359,6 +359,10 @@ func printInterfaceList(b *strings.Builder, decls []*InterfaceDecl, indent strin
 }
 
 func printInterfaceDecl(b *strings.Builder, d *InterfaceDecl) {
+	if d.ObjClass != "" {
+		b.WriteString(d.ObjClass)
+		b.WriteByte(' ')
+	}
 	b.WriteString(strings.Join(d.Names, ", "))
 	b.WriteString(" : ")
 	if d.Mode != "" {
@@ -455,32 +459,55 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 		b.WriteString(strings.Join(n.Constituents, ", "))
 		b.WriteString(");")
 	case *SubprogramDecl:
-		if n.Pure {
-			b.WriteString("pure ")
-		} else if n.Impure {
-			b.WriteString("impure ")
-		}
-		if n.IsProcedure {
-			b.WriteString("procedure ")
-		} else {
-			b.WriteString("function ")
-		}
-		b.WriteString(n.Designator)
-		if len(n.Params) > 0 {
-			b.WriteByte('(')
-			for i, prm := range n.Params {
-				if i > 0 {
-					b.WriteString("; ")
-				}
-				printInterfaceDecl(b, prm)
-			}
-			b.WriteByte(')')
-		}
-		if !n.IsProcedure {
-			b.WriteString(" return ")
-			b.WriteString(n.ReturnMark)
-		}
+		printSubprogramSpec(b, n.IsProcedure, n.Pure, n.Impure, n.Designator, n.Params, n.ReturnMark)
 		b.WriteByte(';')
+	case *SubprogramBody:
+		printSubprogramSpec(b, n.IsProcedure, n.Pure, n.Impure, n.Designator, n.Params, n.ReturnMark)
+		b.WriteString(" is\n")
+		for _, d := range n.Decls {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			printDecl(b, d, indent+"  ")
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent)
+		b.WriteString("begin\n")
+		printSeqStmts(b, n.Stmts, indent)
+		b.WriteString(indent)
+		if n.IsProcedure {
+			b.WriteString("end procedure;")
+		} else {
+			b.WriteString("end function;")
+		}
+	}
+}
+
+// printSubprogramSpec prints `[pure|impure] function|procedure desig[(params)][ return mark]`.
+func printSubprogramSpec(b *strings.Builder, isProc, pure, impure bool, desig string, params []*InterfaceDecl, ret string) {
+	if pure {
+		b.WriteString("pure ")
+	} else if impure {
+		b.WriteString("impure ")
+	}
+	if isProc {
+		b.WriteString("procedure ")
+	} else {
+		b.WriteString("function ")
+	}
+	b.WriteString(desig)
+	if len(params) > 0 {
+		b.WriteByte('(')
+		for i, prm := range params {
+			if i > 0 {
+				b.WriteString("; ")
+			}
+			printInterfaceDecl(b, prm)
+		}
+		b.WriteByte(')')
+	}
+	if !isProc {
+		b.WriteString(" return ")
+		b.WriteString(ret)
 	}
 }
 
