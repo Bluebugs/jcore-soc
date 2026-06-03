@@ -1006,3 +1006,38 @@ end architecture;`
 		t.Fatalf("assert/report not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
+
+func TestParseProcedureCall(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  mon : monitor(clk, rst);          -- concurrent procedure call (labeled, positional)
+  process begin
+    test_equal(a, b);                -- sequential procedure call (positional)
+    done;                            -- sequential parameterless call
+  end process;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	arch := df.Units[0].(*ArchitectureBody)
+	cc, ok := arch.Stmts[0].(*ProcedureCallStmt)
+	if !ok || cc.Label != "mon" || cc.Name != "monitor" || len(cc.Args) != 2 {
+		t.Fatalf("concurrent proc call: %#v", arch.Stmts[0])
+	}
+	pst := arch.Stmts[1].(*ProcessStmt).Stmts
+	s0, ok := pst[0].(*ProcedureCallStmt)
+	if !ok || s0.Name != "test_equal" || len(s0.Args) != 2 {
+		t.Fatalf("seq proc call: %#v", pst[0])
+	}
+	s1, ok := pst[1].(*ProcedureCallStmt)
+	if !ok || s1.Name != "done" || len(s1.Args) != 0 {
+		t.Fatalf("parameterless call: %#v", pst[1])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("procedure call not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

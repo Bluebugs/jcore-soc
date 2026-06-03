@@ -200,6 +200,11 @@ func Walk(v Visitor, node Node) {
 			Walk(v, n.For)
 		}
 
+	case *ProcedureCallStmt:
+		for _, a := range n.Args {
+			Walk(v, a)
+		}
+
 	// declarations
 	case *ConstantDecl:
 		if n.Constraint != nil {

@@ -332,6 +332,19 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 			printExpr(b, n.For)
 		}
 		b.WriteByte(';')
+
+	case *ProcedureCallStmt:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString(n.Name)
+		if len(n.Args) > 0 {
+			b.WriteByte('(')
+			printAssocList(b, n.Args)
+			b.WriteByte(')')
+		}
+		b.WriteByte(';')
 	}
 }
 

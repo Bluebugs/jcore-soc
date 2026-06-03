@@ -644,6 +644,11 @@ func (p *parser) parseConcurrentStmt() Stmt {
 		p.expect(SEMICOLON)
 		return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Waveform: wf}
 	}
+	// Concurrent procedure call: name(args) ;  (a call expression ending in ';')
+	if _, ok := target.(*CallExpr); ok && p.at(SEMICOLON) {
+		p.advance()
+		return p.procCall(pos, label, target)
+	}
 	// Bare component instantiation: `label : comp_name [generic map][port map] ;`.
 	// Only valid with a label and a simple name; otherwise defer.
 	if label != "" {
@@ -653,6 +658,26 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	}
 	p.errorf(p.cur().Pos, "deferred: concurrent statement not yet parsed")
 	return nil
+}
+
+// procCall builds a ProcedureCallStmt from a parsed name/call target. Positional
+// CallExpr args become positional AssocElements; a bare Ident is a parameterless
+// call. (Named-association procedure calls are not produced here — parseName
+// cannot parse `=>` in a call suffix, so such files are excluded.)
+func (p *parser) procCall(pos Pos, label string, target Expr) Stmt {
+	switch t := target.(type) {
+	case *CallExpr:
+		args := make([]*AssocElement, 0, len(t.Args))
+		for _, a := range t.Args {
+			args = append(args, &AssocElement{P: a.Pos(), Actual: a})
+		}
+		return &ProcedureCallStmt{P: pos, Label: label, Name: exprString(t.Fun), Args: args}
+	case *Ident:
+		return &ProcedureCallStmt{P: pos, Label: label, Name: t.Name}
+	default:
+		p.errorf(pos, "expected procedure call, got %T", target)
+		return nil
+	}
 }
 
 // parseWaveformElem parses `value [after time]`.
@@ -813,6 +838,17 @@ func (p *parser) parseSequentialStmt() Stmt {
 		val := p.parseExpr()
 		p.expect(SEMICOLON)
 		return &VariableAssignStmt{P: pos, Label: label, Target: target, Value: val}
+	}
+	// procedure-call statement: name[(positional args)] ;
+	switch target.(type) {
+	case *CallExpr:
+		p.expect(SEMICOLON)
+		return p.procCall(pos, label, target)
+	case *Ident:
+		if p.at(SEMICOLON) {
+			p.advance()
+			return p.procCall(pos, label, target)
+		}
 	}
 	p.errorf(p.cur().Pos, "deferred: sequential statement not yet parsed")
 	return nil

@@ -163,6 +163,23 @@ func (n *InstantiationStmt) End() Pos {
 }
 func (n *InstantiationStmt) stmtNode() {}
 
+// ProcedureCallStmt is `[label:] name [(actual {, actual})] ;` (sequential or concurrent).
+type ProcedureCallStmt struct {
+	P     Pos
+	Label string
+	Name  string
+	Args  []*AssocElement
+}
+
+func (n *ProcedureCallStmt) Pos() Pos { return n.P }
+func (n *ProcedureCallStmt) End() Pos {
+	if k := len(n.Args); k > 0 {
+		return n.Args[k-1].End()
+	}
+	return n.P
+}
+func (n *ProcedureCallStmt) stmtNode() {}
+
 // GenerateStmt is `label : (for id in range | if cond) generate [decls begin] stmts end generate ;`.
 type GenerateStmt struct {
 	P     Pos
