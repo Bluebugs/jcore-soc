@@ -278,6 +278,55 @@ func TestParseSubprogramDecls(t *testing.T) {
 	}
 }
 
+func TestParseExtendedIdDesignator(t *testing.T) {
+	// Extended-identifier designator: function \?=\ (...) return ...;
+	const src = "package p is\nfunction \\?=\\ (l, r : bit) return bit;\nend package;"
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	pkg, ok := df.Units[0].(*PackageDecl)
+	if !ok || len(pkg.Decls) != 1 {
+		t.Fatalf("expected PackageDecl with 1 decl, got %T len=%d", df.Units[0], len(pkg.Decls))
+	}
+	sd, ok := pkg.Decls[0].(*SubprogramDecl)
+	if !ok {
+		t.Fatalf("expected *SubprogramDecl, got %T", pkg.Decls[0])
+	}
+	if sd.Designator == "" {
+		t.Fatal("Designator is empty")
+	}
+	t.Logf("EXTIDENT.Lit for \\?=\\ = %q", sd.Designator)
+
+	// Round-trip: print → reparse → equalAST
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 {
+		t.Fatalf("reparse errors: %v\n--- printed ---\n%s", errs2, out)
+	}
+	if !equalAST(df, df2) {
+		t.Fatalf("extended-id designator not AST-stable:\n%s", out)
+	}
+	sd2, ok := df2.Units[0].(*PackageDecl).Decls[0].(*SubprogramDecl)
+	if !ok || sd2.Designator != sd.Designator {
+		t.Fatalf("round-trip changed designator: %q → %q", sd.Designator, sd2.Designator)
+	}
+
+	// Regression: operator-symbol (STRINGLIT) still works.
+	ds2 := parseDecls(t, `function "+"(a : bit; b : bit) return bit;`)
+	op, ok := ds2[0].(*SubprogramDecl)
+	if !ok || op.Designator != `"+"` {
+		t.Fatalf("operator-symbol regression: %#v", ds2[0])
+	}
+
+	// Regression: plain identifier still works.
+	ds3 := parseDecls(t, `function foo(a : bit) return bit;`)
+	fn, ok := ds3[0].(*SubprogramDecl)
+	if !ok || fn.Designator != "foo" {
+		t.Fatalf("ident regression: %#v", ds3[0])
+	}
+}
+
 func TestParseAttributeDecls(t *testing.T) {
 	ds := parseDecls(t, `
 		attribute num_words : natural;

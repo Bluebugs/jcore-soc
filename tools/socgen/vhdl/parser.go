@@ -1408,7 +1408,7 @@ func (p *parser) parseSubprogramDecl() Decl {
 	// designator: identifier or operator-symbol string literal
 	var desig string
 	switch p.cur().Kind {
-	case IDENT, STRINGLIT:
+	case IDENT, EXTIDENT, STRINGLIT:
 		desig = p.advance().Lit
 	default:
 		t := p.cur()
