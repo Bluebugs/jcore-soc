@@ -98,8 +98,13 @@ func Walk(v Visitor, node Node) {
 			}
 		}
 		for _, c := range n.Conds {
-			if c.Value != nil {
-				Walk(v, c.Value)
+			for _, el := range c.Waveform {
+				if el.Value != nil {
+					Walk(v, el.Value)
+				}
+				if el.After != nil {
+					Walk(v, el.After)
+				}
 			}
 			if c.Cond != nil {
 				Walk(v, c.Cond)

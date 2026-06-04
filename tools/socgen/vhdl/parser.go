@@ -757,33 +757,23 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	target := p.parseName()
 	if p.at(LE) {
 		p.advance() // consume '<='
-		first := p.parseExpr()
+		wf := p.parseWaveform()
 		if p.at(WHEN) {
-			// conditional: value when cond {else value when cond} [else value]
 			var conds []*CondWaveform
 			p.advance() // consume WHEN
-			conds = append(conds, &CondWaveform{Value: first, Cond: p.parseExpr()})
+			conds = append(conds, &CondWaveform{Waveform: wf, Cond: p.parseExpr()})
 			for p.accept(ELSE) { // each iteration consumes ELSE -> always advances
-				val := p.parseExpr()
+				w := p.parseWaveform()
 				if p.at(WHEN) {
 					p.advance()
-					conds = append(conds, &CondWaveform{Value: val, Cond: p.parseExpr()})
+					conds = append(conds, &CondWaveform{Waveform: w, Cond: p.parseExpr()})
 				} else {
-					conds = append(conds, &CondWaveform{Value: val, Cond: nil})
+					conds = append(conds, &CondWaveform{Waveform: w, Cond: nil})
 					break
 				}
 			}
 			p.expect(SEMICOLON)
 			return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Conds: conds}
-		}
-		// simple waveform (first element value already parsed as `first`)
-		el0 := &WaveformElem{Value: first}
-		if p.accept(AFTER) {
-			el0.After = p.parseExpr()
-		}
-		wf := []*WaveformElem{el0}
-		for p.accept(COMMA) {
-			wf = append(wf, p.parseWaveformElem())
 		}
 		p.expect(SEMICOLON)
 		return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Waveform: wf}

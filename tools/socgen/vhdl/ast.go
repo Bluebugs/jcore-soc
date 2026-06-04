@@ -169,11 +169,11 @@ func (n *BindingIndication) End() Pos {
 	return n.P
 }
 
-// CondWaveform is one `value when cond` arm of a conditional signal assignment.
-// The final `else value` arm has Cond == nil.
+// CondWaveform is one `waveform when cond` arm of a conditional signal
+// assignment. The final bare `else waveform` arm has Cond == nil.
 type CondWaveform struct {
-	Value Expr
-	Cond  Expr
+	Waveform []*WaveformElem
+	Cond     Expr
 }
 
 // WaveformElem is one element of a signal-assignment waveform: `value [after time]`.
@@ -229,7 +229,13 @@ func (n *ConcurrentSignalAssign) End() Pos {
 		if last.After != nil { return last.After.End() }
 		if last.Value != nil { return last.Value.End() }
 	}
-	if k := len(n.Conds); k > 0 && n.Conds[k-1].Value != nil { return n.Conds[k-1].Value.End() }
+	if k := len(n.Conds); k > 0 {
+		if w := n.Conds[k-1].Waveform; len(w) > 0 {
+			last := w[len(w)-1]
+			if last.After != nil { return last.After.End() }
+			if last.Value != nil { return last.Value.End() }
+		}
+	}
 	return n.Target.End()
 }
 func (n *ConcurrentSignalAssign) stmtNode() {}

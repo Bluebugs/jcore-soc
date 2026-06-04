@@ -475,26 +475,34 @@ begin
   q <= a when sel = '1' else b;
   r <= x when c1 else y when c2 else z;
   s <= d;
+  clk <= '0' after 5 ns when rst = '1' else '1';   -- conditional arm WITH after
 end architecture;`
 	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
 	if len(errs) != 0 {
 		t.Fatalf("errs: %v", errs)
 	}
-	arch := df.Units[0].(*ArchitectureBody)
-	q := arch.Stmts[0].(*ConcurrentSignalAssign)
+	st := df.Units[0].(*ArchitectureBody).Stmts
+	q := st[0].(*ConcurrentSignalAssign)
 	if q.Waveform != nil || len(q.Conds) != 2 {
 		t.Fatalf("q conds: %#v", q)
 	}
 	if q.Conds[0].Cond == nil || q.Conds[1].Cond != nil { // last arm is the bare else
 		t.Fatalf("q cond shape: %#v", q.Conds)
 	}
-	r := arch.Stmts[1].(*ConcurrentSignalAssign)
+	if len(q.Conds[0].Waveform) != 1 {
+		t.Fatalf("q arm0 waveform: %#v", q.Conds[0])
+	}
+	r := st[1].(*ConcurrentSignalAssign)
 	if len(r.Conds) != 3 {
 		t.Fatalf("r conds: %d", len(r.Conds))
 	}
-	s := arch.Stmts[2].(*ConcurrentSignalAssign)
+	s := st[2].(*ConcurrentSignalAssign)
 	if s.Waveform == nil || len(s.Conds) != 0 { // simple assignment unchanged
 		t.Fatalf("s simple: %#v", s)
+	}
+	clk := st[3].(*ConcurrentSignalAssign)
+	if len(clk.Conds) != 2 || clk.Conds[0].Waveform[0].After == nil {
+		t.Fatalf("conditional arm with after: %#v", clk.Conds[0])
 	}
 	// round-trip
 	out := Print(df)

@@ -171,7 +171,7 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 				if i > 0 {
 					b.WriteString(" else ")
 				}
-				printExpr(b, c.Value)
+				printWaveform(b, c.Waveform)
 				if c.Cond != nil {
 					b.WriteString(" when ")
 					printExpr(b, c.Cond)
