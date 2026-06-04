@@ -1443,7 +1443,7 @@ func (p *parser) parseSubprogramDecl() Decl {
 		p.expect(END)
 		p.accept(FUNCTION)  // optional kind keyword in `end function`/`end procedure`
 		p.accept(PROCEDURE)
-		if p.at(IDENT) || p.at(STRINGLIT) {
+		if p.at(IDENT) || p.at(EXTIDENT) || p.at(STRINGLIT) {
 			p.advance() // optional closing designator
 		}
 		p.expect(SEMICOLON)

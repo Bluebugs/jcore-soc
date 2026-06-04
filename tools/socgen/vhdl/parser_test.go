@@ -327,6 +327,67 @@ func TestParseExtendedIdDesignator(t *testing.T) {
 	}
 }
 
+// TestParseExtendedIdDesignatorBody checks that a subprogram BODY with an
+// extended-identifier designator AND an extended-identifier closing label
+// parses without errors and round-trips (parse→print→reparse→equalAST).
+// Also confirms STRINGLIT and IDENT closing labels still work.
+func TestParseExtendedIdDesignatorBody(t *testing.T) {
+	// Extended-id designator + extended-id closing label.
+	const src = `package body p is
+  function \?=\ (l, r : bit) return bit is
+  begin
+    return l;
+  end function \?=\;
+end package body;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	// Round-trip.
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 {
+		t.Fatalf("reparse errors: %v\n--- printed ---\n%s", errs2, out)
+	}
+	if !equalAST(df, df2) {
+		t.Fatalf("extended-id body not AST-stable:\n%s", out)
+	}
+
+	// Regression: STRINGLIT closing label still works.
+	const src2 = `package body p is
+  function "+" (a, b : bit) return bit is
+  begin
+    return a;
+  end function "+";
+end package body;`
+	df3, errs3 := ParseFile(NewFileSet(), "t.vhd", []byte(src2))
+	if len(errs3) != 0 {
+		t.Fatalf("stringlit-closing-label parse errors: %v", errs3)
+	}
+	out3 := Print(df3)
+	df4, errs4 := ParseFile(NewFileSet(), "t.vhd", []byte(out3))
+	if len(errs4) != 0 || !equalAST(df3, df4) {
+		t.Fatalf("stringlit-closing-label not AST-stable:\n%s", out3)
+	}
+
+	// Regression: plain IDENT closing label still works.
+	const src3 = `package body p is
+  function f (a : bit) return bit is
+  begin
+    return a;
+  end function f;
+end package body;`
+	df5, errs5 := ParseFile(NewFileSet(), "t.vhd", []byte(src3))
+	if len(errs5) != 0 {
+		t.Fatalf("ident-closing-label parse errors: %v", errs5)
+	}
+	out5 := Print(df5)
+	df6, errs6 := ParseFile(NewFileSet(), "t.vhd", []byte(out5))
+	if len(errs6) != 0 || !equalAST(df5, df6) {
+		t.Fatalf("ident-closing-label not AST-stable:\n%s", out5)
+	}
+}
+
 func TestParseAttributeDecls(t *testing.T) {
 	ds := parseDecls(t, `
 		attribute num_words : natural;
