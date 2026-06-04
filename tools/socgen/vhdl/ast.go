@@ -676,8 +676,9 @@ type FileDecl struct {
 	P           Pos
 	Names       []string
 	SubtypeMark string
-	OpenMode    Expr // file_open_kind expression (nil if absent)
-	LogicalName Expr // file_logical_name expression (nil if absent)
+	Mode        string // VHDL-87 file mode: "" | "in" | "out"
+	OpenMode    Expr   // file_open_kind expression (nil if absent)
+	LogicalName Expr   // file_logical_name expression (nil if absent)
 }
 
 func (n *FileDecl) Pos() Pos { return n.P }

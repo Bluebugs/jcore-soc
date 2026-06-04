@@ -737,6 +737,10 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 			printExpr(b, n.LogicalName)
 		} else if n.LogicalName != nil {
 			b.WriteString(" is ")
+			if n.Mode != "" {
+				b.WriteString(n.Mode)
+				b.WriteByte(' ')
+			}
 			printExpr(b, n.LogicalName)
 		}
 		b.WriteByte(';')

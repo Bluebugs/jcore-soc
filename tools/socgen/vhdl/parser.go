@@ -1327,16 +1327,25 @@ func (p *parser) parseFileDecl() Decl {
 	names := p.parseNameList()
 	p.expect(COLON)
 	mark := p.parseDottedName()
+	var mode string
 	var openMode, logical Expr
 	if p.accept(OPEN) {
 		openMode = p.parseExpr()
 		p.expect(IS)
 		logical = p.parseExpr()
 	} else if p.accept(IS) {
+		switch p.cur().Kind {
+		case IN:
+			mode = "in"
+			p.advance()
+		case OUT:
+			mode = "out"
+			p.advance()
+		}
 		logical = p.parseExpr()
 	}
 	p.expect(SEMICOLON)
-	return &FileDecl{P: pos, Names: names, SubtypeMark: mark, OpenMode: openMode, LogicalName: logical}
+	return &FileDecl{P: pos, Names: names, SubtypeMark: mark, Mode: mode, OpenMode: openMode, LogicalName: logical}
 }
 
 // parseConfigSpec parses a configuration specification:

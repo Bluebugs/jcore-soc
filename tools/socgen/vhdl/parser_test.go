@@ -1238,6 +1238,59 @@ func TestParseFileAndAccessAndUse(t *testing.T) {
 	}
 }
 
+func TestParseFileDeclModes(t *testing.T) {
+	// VHDL-87 form: file f : text is out "cpu0.acc";
+	ds := parseDecls(t, `file f0 : text is out "cpu0.acc";`)
+	if len(ds) != 1 {
+		t.Fatalf("expected 1 decl, got %d", len(ds))
+	}
+	f0 := ds[0].(*FileDecl)
+	if f0.Names[0] != "f0" || f0.SubtypeMark != "text" || f0.Mode != "out" || f0.LogicalName == nil || f0.OpenMode != nil {
+		t.Fatalf("file decl out mode: %#v", f0)
+	}
+	// VHDL-87 form: file f1 : text is in "input.txt";
+	ds2 := parseDecls(t, `file f1 : text is in "input.txt";`)
+	if len(ds2) != 1 {
+		t.Fatalf("expected 1 decl, got %d", len(ds2))
+	}
+	f1 := ds2[0].(*FileDecl)
+	if f1.Names[0] != "f1" || f1.SubtypeMark != "text" || f1.Mode != "in" || f1.LogicalName == nil || f1.OpenMode != nil {
+		t.Fatalf("file decl in mode: %#v", f1)
+	}
+	// regression: no-is form (Mode must be "")
+	ds3 := parseDecls(t, `file f : text;`)
+	f3 := ds3[0].(*FileDecl)
+	if f3.Mode != "" || f3.LogicalName != nil {
+		t.Fatalf("file decl no-is: %#v", f3)
+	}
+	// regression: open form (Mode must be "")
+	ds4 := parseDecls(t, `file fp : text open write_mode is "n";`)
+	f4 := ds4[0].(*FileDecl)
+	if f4.Mode != "" || f4.OpenMode == nil || f4.LogicalName == nil {
+		t.Fatalf("file decl open form: %#v", f4)
+	}
+	// round-trip: VHDL-87 out mode
+	dfOut, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\nfile f0 : text is out \"cpu0.acc\";\nend package;"))
+	if len(errs) != 0 {
+		t.Fatalf("parse errs: %v", errs)
+	}
+	outStr := Print(dfOut)
+	dfOut2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(outStr))
+	if len(errs2) != 0 || !equalAST(dfOut, dfOut2) {
+		t.Fatalf("file decl out mode not AST-stable: errs=%v\n%s", errs2, outStr)
+	}
+	// round-trip: VHDL-87 in mode
+	dfIn, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\nfile f1 : text is in \"input.txt\";\nend package;"))
+	if len(errs) != 0 {
+		t.Fatalf("parse errs: %v", errs)
+	}
+	outStr = Print(dfIn)
+	dfIn2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(outStr))
+	if len(errs2) != 0 || !equalAST(dfIn, dfIn2) {
+		t.Fatalf("file decl in mode not AST-stable: errs=%v\n%s", errs2, outStr)
+	}
+}
+
 func TestParseNameSuffixChains(t *testing.T) {
 	// double index: arr(i)(j) -> CallExpr{ Fun: CallExpr{arr,[i]}, [j] }
 	e := mustParseExpr(t, "arr(i)(j)")
