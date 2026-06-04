@@ -97,8 +97,9 @@ func TestCorpusGhdlReanalyze(t *testing.T) {
 				if strings.Contains(msg, "not found in library") ||
 					strings.Contains(msg, "no declaration for") ||
 					strings.Contains(msg, "was not analysed") ||
-					strings.Contains(msg, "needs the -fsynopsys option") {
-					t.Skipf("skipping: test-environment limitation (external units / -fsynopsys), not a printer bug\n%s", b)
+					strings.Contains(msg, "needs the -fsynopsys option") ||
+					strings.Contains(msg, "universal integer bound must be numeric literal") {
+					t.Skipf("skipping: test-environment limitation (external units / -fsynopsys / ghdl strict-93 expression bounds), not a printer bug\n%s", b)
 				}
 				t.Fatalf("ghdl -a rejected printed output: %v\n%s\n--- printed ---\n%s", err, b, out)
 			}

@@ -37,6 +37,7 @@ components/cpu/decode/decode_table_rom.vhd
 components/cpu/decode/decode_table_rom_config.vhd
 components/cpu/decode/decode_table_simple.vhd
 components/cpu/decode/decode_table_simple_config.vhd
+components/cpu/sim/bridge_pkg.vhd
 components/cpu/sim/bus_monitor.vhd
 components/cpu/sim/cpusim_miniaic2.vhd
 components/cpu/sim/data_bus_pkg.vhd
@@ -56,6 +57,7 @@ components/ddr/ddr_iocells.vhd
 components/ddr/ddr_iocells_k7.vhd
 components/ddr/ddr_pkg.vhd
 components/ddr/wrbuf_pkg.vhd
+components/ddr2/Amt46v16m16.vhd
 components/ddr2/ddrc_cnt_pkg.vhd
 components/ddr2/ddrc_fsm.vhd
 components/ddr2/ddrc_pad.vhd
@@ -81,6 +83,7 @@ components/gps_if2/tools/tests/tap/test_pkg.vhd
 components/misc/aic.vhd
 components/misc/aic2_pkg.vhd
 components/misc/aic_edgedet.vhd
+components/misc/aic_tb.vhd
 components/misc/bus_mux_ff_pkg.vhd
 components/misc/bus_mux_lock_pkg.vhd
 components/misc/bus_mux_pkg.vhd
@@ -101,6 +104,7 @@ components/ring_bus/tests/data_bus_adapter_tap.vhd
 components/ring_bus/tests/node_tap.vhd
 components/ring_bus/tests/rbus_data_master_tap.vhd
 components/ring_bus/tests/word_tap.vhd
+components/uartlite/tests/uart_tb.vhd
 components/uartlite/uart_pkg.vhd
 components/uartlite/uartlitedb.vhd
 lib/fixed_dsm_pkg/fixed_dsm_pkg.vhd
@@ -124,6 +128,7 @@ lib/hwutils/tests/flagsync_tb.vhd
 lib/hwutils/tests/flancter_tb.vhd
 lib/hwutils/tests/guardflancter_tb.vhd
 lib/hwutils/util_pkg.vhd
+lib/memory_tech_lib/memory_pkg.vhd
 lib/memory_tech_lib/ram_18x2048_1rw.vhd
 lib/memory_tech_lib/ram_1rw_mems.vhd
 lib/memory_tech_lib/ram_2rw_mems.vhd
@@ -133,6 +138,8 @@ lib/memory_tech_lib/ram_32x1x512_2rw.vhd
 lib/memory_tech_lib/rom_1r_mems.vhd
 lib/memory_tech_lib/rom_32x2048_1r.vhd
 lib/memory_tech_lib/synth/mem_top.vhd
+lib/memory_tech_lib/tech/inferred/ram_1rw_infer.vhd
+lib/memory_tech_lib/tech/inferred/ram_2rw_infer.vhd
 lib/memory_tech_lib/tech/inferred/ram_32x2048.vhd
 lib/memory_tech_lib/tech/inferred/ram_32x32.vhd
 lib/memory_tech_lib/tech/inferred/rom_1r_infer.vhd
@@ -156,6 +163,7 @@ lib/reg_file_struct/tests/marchc_1rf1_bw.vhd
 lib/reg_file_struct/tests/marchc_1rf2.vhd
 lib/reg_file_struct/tests/marchc_1rf4.vhd
 lib/reg_file_struct/tests/marchc_rf1_rf2_rf4.vhd
+lib/reg_file_struct/tests/rf_tb.vhd
 lib/reg_file_struct/tests/time_tb.vhd
 lib/reg_file_struct/tools/tests/tap/test_pkg.vhd
 targets/boards/microboard/devices.vhd
