@@ -692,11 +692,15 @@ func (p *parser) parseEntityDecl() *EntityDecl {
 		}
 		p.ensureProgress(start, "entity declaration")
 	}
-	if p.at(BEGIN) {
-		// Entity passive statement part: deferred in this phase. The file is
-		// excluded from round-trip rather than parsed. TODO: parse it in P1c.
-		p.errorf(p.cur().Pos, "deferred: entity statement part not yet parsed")
-		return &EntityDecl{P: pos, Name: name, Generics: generics, Ports: ports, Decls: decls}
+	var stmts []Stmt
+	if p.accept(BEGIN) {
+		for !p.at(END) && !p.at(EOF) {
+			start := p.i
+			if s := p.parseConcurrentStmt(); s != nil {
+				stmts = append(stmts, s)
+			}
+			p.ensureProgress(start, "entity statement")
+		}
 	}
 
 	p.expect(END)
@@ -705,7 +709,7 @@ func (p *parser) parseEntityDecl() *EntityDecl {
 		p.advance()
 	}
 	p.expect(SEMICOLON)
-	return &EntityDecl{P: pos, Name: name, Generics: generics, Ports: ports, Decls: decls}
+	return &EntityDecl{P: pos, Name: name, Generics: generics, Ports: ports, Decls: decls, Stmts: stmts}
 }
 
 // parseArchitectureBody parses `architecture name of entity is <decls> begin

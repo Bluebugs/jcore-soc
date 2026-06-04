@@ -589,6 +589,14 @@ func printEntityDecl(b *strings.Builder, n *EntityDecl) {
 		printDecl(b, d, "  ")
 		b.WriteByte('\n')
 	}
+	if len(n.Stmts) > 0 {
+		b.WriteString("begin\n")
+		for _, s := range n.Stmts {
+			b.WriteString("  ")
+			printStmt(b, s, "  ")
+			b.WriteByte('\n')
+		}
+	}
 	b.WriteString("end entity;\n")
 }
 

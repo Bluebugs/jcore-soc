@@ -377,20 +377,16 @@ func TestParseGroupDecls(t *testing.T) {
 }
 
 func TestDeferredUnitTagged(t *testing.T) {
-	// An entity statement part (passive statements after `begin`) is still
-	// deferred; it must be tagged with a "deferred" error so the file is excluded.
-	_, errs := parse(t, "entity e is\nbegin\n  assert true;\nend entity;")
-	if len(errs) == 0 {
-		t.Fatal("expected a deferred-unit error")
+	// Entity statement parts (passive statements after `begin`) are now fully
+	// parsed — the old deferral path has been replaced. Verify that an entity
+	// with an assert statement part parses cleanly (zero errors).
+	df, errs := parse(t, "entity e is\nbegin\n  assert true;\nend entity;")
+	if len(errs) != 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
 	}
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e.Error(), "deferred") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("want a deferred-unit error, got %v", errs)
+	e, ok := df.Units[0].(*EntityDecl)
+	if !ok || len(e.Stmts) != 1 {
+		t.Fatalf("expected 1 stmt, got %#v", df.Units[0])
 	}
 }
 
@@ -421,19 +417,20 @@ end entity e;`
 }
 
 func TestEntityStatementPartDeferred(t *testing.T) {
-	// An entity with a passive statement part (begin) is deferred (errors).
-	_, errs := ParseFile(NewFileSet(), "t.vhd", []byte("entity e is\nbegin\n  assert true;\nend entity;"))
-	if len(errs) == 0 {
-		t.Fatal("expected a deferred error for entity statement part")
+	// Entity statement parts are now fully parsed (no longer deferred).
+	// Verify the assert is parsed correctly and the file round-trips.
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("entity e is\nbegin\n  assert true;\nend entity;"))
+	if len(errs) != 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
 	}
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e.Error(), "deferred") {
-			found = true
-		}
+	e, ok := df.Units[0].(*EntityDecl)
+	if !ok || len(e.Stmts) != 1 {
+		t.Fatalf("expected 1 stmt, got %#v", df.Units[0])
 	}
-	if !found {
-		t.Fatalf("want a 'deferred' error, got %v", errs)
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("entity statement part not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
 
@@ -1535,4 +1532,61 @@ func TestParseWithCPP(t *testing.T) {
 			t.Fatal("AST not stable across print/reparse")
 		}
 	})
+}
+
+// roundTripSrc is a helper that parses src, asserts zero errors, prints, reparses,
+// and checks AST equality.  It returns the first design unit as a convenience.
+func roundTripSrc(t *testing.T, src string) DesignUnit {
+	t.Helper()
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 {
+		t.Fatalf("reparse errors: %v\n--- printed ---\n%s", errs2, out)
+	}
+	if !equalAST(df, df2) {
+		t.Fatalf("AST not stable across print/reparse\n--- printed ---\n%s", out)
+	}
+	if len(df.Units) == 0 {
+		t.Fatal("no design units")
+	}
+	return df.Units[0]
+}
+
+func TestParseEntityStatementPart(t *testing.T) {
+	// Case 1: bare assert in entity statement part.
+	src1 := "entity e is\nbegin\n  assert true report \"x\" severity note;\nend entity;\n"
+	u1 := roundTripSrc(t, src1)
+	e1, ok := u1.(*EntityDecl)
+	if !ok {
+		t.Fatalf("expected *EntityDecl, got %T", u1)
+	}
+	if len(e1.Stmts) != 1 {
+		t.Fatalf("case1: want 1 stmt, got %d", len(e1.Stmts))
+	}
+
+	// Case 2: ports + statement part with a labelled assert.
+	src2 := "entity e is\n  port(a : in bit);\nbegin\n  check: assert a = '1';\nend entity e;\n"
+	u2 := roundTripSrc(t, src2)
+	e2, ok := u2.(*EntityDecl)
+	if !ok {
+		t.Fatalf("expected *EntityDecl, got %T", u2)
+	}
+	if len(e2.Stmts) != 1 {
+		t.Fatalf("case2: want 1 stmt, got %d", len(e2.Stmts))
+	}
+
+	// Case 3: regression — entity without statement part still parses cleanly.
+	src3 := "entity e is\nend entity;\n"
+	u3 := roundTripSrc(t, src3)
+	e3, ok := u3.(*EntityDecl)
+	if !ok {
+		t.Fatalf("expected *EntityDecl, got %T", u3)
+	}
+	if len(e3.Stmts) != 0 {
+		t.Fatalf("case3: want 0 stmts, got %d", len(e3.Stmts))
+	}
 }
