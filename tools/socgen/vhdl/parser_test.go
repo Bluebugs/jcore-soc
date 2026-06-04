@@ -1261,6 +1261,11 @@ func TestParseNameSuffixChains(t *testing.T) {
 	if _, ok := se.X.(*CallExpr); !ok {
 		t.Fatalf("selector base: %#v", se.X)
 	}
+	// SelectorExpr.End() must point just past the selector (dot pos + ".field" len).
+	se2 := mustParseExpr(t, "arr(i).field").(*SelectorExpr)
+	if int(se2.End()-se2.Dot) != len(".field") {
+		t.Fatalf("SelectorExpr End/Dot span: End-Dot=%d, want %d", se2.End()-se2.Dot, len(".field"))
+	}
 	// invariants: flat dotted name stays a flat Ident; single call stays one CallExpr
 	if id, ok := mustParseExpr(t, "a.b.c").(*Ident); !ok || id.Name != "a.b.c" {
 		t.Fatalf("flat dotted name regressed: %#v", mustParseExpr(t, "a.b.c"))

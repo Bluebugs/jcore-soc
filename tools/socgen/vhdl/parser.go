@@ -1819,13 +1819,13 @@ func (p *parser) parseName() Expr {
 			rparen := p.expect(RPAREN)
 			expr = &CallExpr{Fun: expr, Lparen: lparen.Pos, Args: args, Rparen: rparen.Pos}
 		case p.at(DOT) && (p.peekKind(1) == IDENT || p.peekKind(1) == EXTIDENT || p.peekKind(1) == ALL):
-			p.advance() // consume '.'
+			dotTok := p.advance() // consume '.'
 			selTok := p.advance()
 			sel := selTok.Lit
 			if sel == "" {
 				sel = selTok.Kind.String()
 			}
-			expr = &SelectorExpr{X: expr, Dot: selTok.Pos, Sel: sel}
+			expr = &SelectorExpr{X: expr, Dot: dotTok.Pos, Sel: sel}
 		default:
 			return expr
 		}
