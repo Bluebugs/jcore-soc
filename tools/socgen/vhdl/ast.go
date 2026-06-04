@@ -41,6 +41,8 @@ func (n *UseClause)     Pos() Pos { return n.P }
 func (n *LibraryClause) End() Pos { return n.P }
 func (n *UseClause)     End() Pos { return n.P }
 
+func (n *UseClause) declNode() {}
+
 // design units
 type PackageDecl struct{ P Pos; Name string; Decls []Decl }
 type EntityDecl  struct{ P Pos; Name string; Generics []*InterfaceDecl; Ports []*InterfaceDecl; Decls []Decl }
@@ -631,6 +633,37 @@ func (n *InterfaceDecl) End() Pos {
 	if n.Constraint != nil { return n.Constraint.End() }
 	return n.P
 }
+
+// FileDecl is `file names : subtype_mark [ [open expr] is expr ] ;`.
+type FileDecl struct {
+	P           Pos
+	Names       []string
+	SubtypeMark string
+	OpenMode    Expr // file_open_kind expression (nil if absent)
+	LogicalName Expr // file_logical_name expression (nil if absent)
+}
+
+func (n *FileDecl) Pos() Pos { return n.P }
+func (n *FileDecl) End() Pos {
+	if n.LogicalName != nil { return n.LogicalName.End() }
+	if n.OpenMode != nil { return n.OpenMode.End() }
+	return n.P
+}
+func (n *FileDecl) declNode() {}
+
+// FileTypeDef is `file of type_mark`.
+type FileTypeDef struct{ P Pos; Mark string }
+
+func (n *FileTypeDef) Pos() Pos { return n.P }
+func (n *FileTypeDef) End() Pos { return n.P }
+func (n *FileTypeDef) typeDefNode() {}
+
+// AccessDef is `access subtype_mark`.
+type AccessDef struct{ P Pos; Mark string }
+
+func (n *AccessDef) Pos() Pos { return n.P }
+func (n *AccessDef) End() Pos { return n.P }
+func (n *AccessDef) typeDefNode() {}
 
 // type definitions
 type EnumDef   struct{ P Pos; Lits []string }

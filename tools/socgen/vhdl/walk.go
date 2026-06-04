@@ -320,6 +320,13 @@ func Walk(v Visitor, node Node) {
 		if n.Value != nil {
 			Walk(v, n.Value)
 		}
+	case *FileDecl:
+		if n.OpenMode != nil {
+			Walk(v, n.OpenMode)
+		}
+		if n.LogicalName != nil {
+			Walk(v, n.LogicalName)
+		}
 
 	// type definitions
 	case *EnumDef:
@@ -331,6 +338,10 @@ func Walk(v Visitor, node Node) {
 			}
 		}
 	case *ArrayDef:
+	case *FileTypeDef:
+		// no child nodes
+	case *AccessDef:
+		// no child nodes
 
 	// expressions
 	case *PhysicalLit:

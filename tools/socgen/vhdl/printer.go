@@ -693,6 +693,25 @@ func printDecl(b *strings.Builder, d Decl, indent string) {
 			printBindingIndication(b, n.Binding)
 		}
 		b.WriteByte(';')
+	case *FileDecl:
+		b.WriteString("file ")
+		b.WriteString(strings.Join(n.Names, ", "))
+		b.WriteString(" : ")
+		b.WriteString(n.SubtypeMark)
+		if n.OpenMode != nil {
+			b.WriteString(" open ")
+			printExpr(b, n.OpenMode)
+			b.WriteString(" is ")
+			printExpr(b, n.LogicalName)
+		} else if n.LogicalName != nil {
+			b.WriteString(" is ")
+			printExpr(b, n.LogicalName)
+		}
+		b.WriteByte(';')
+	case *UseClause:
+		b.WriteString("use ")
+		b.WriteString(strings.Join(n.Names, ", "))
+		b.WriteByte(';')
 	case *SubprogramDecl:
 		printSubprogramSpec(b, n.IsProcedure, n.Pure, n.Impure, n.Designator, n.Params, n.ReturnMark)
 		b.WriteByte(';')
@@ -769,6 +788,14 @@ func printTypeDecl(b *strings.Builder, n *TypeDecl, indent string) {
 		b.WriteString("end record;")
 	case *ArrayDef:
 		b.WriteString(def.Text)
+		b.WriteByte(';')
+	case *FileTypeDef:
+		b.WriteString("file of ")
+		b.WriteString(def.Mark)
+		b.WriteByte(';')
+	case *AccessDef:
+		b.WriteString("access ")
+		b.WriteString(def.Mark)
 		b.WriteByte(';')
 	}
 }

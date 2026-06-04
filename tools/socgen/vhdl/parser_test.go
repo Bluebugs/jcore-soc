@@ -1201,3 +1201,44 @@ end architecture;`
 		t.Fatalf("config spec not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
+
+func TestParseFileAndAccessAndUse(t *testing.T) {
+	ds := parseDecls(t, `
+		use work.textio.all;
+		type ft is file of character;
+		type ap is access rec_t;
+		file f1 : text;
+		file f2 : text open read_mode is "data.txt";`)
+	if len(ds) != 5 {
+		t.Fatalf("got %d decls", len(ds))
+	}
+	if _, ok := ds[0].(*UseClause); !ok {
+		t.Fatalf("use clause as decl: %#v", ds[0])
+	}
+	td0 := ds[1].(*TypeDecl)
+	if ftd, ok := td0.Def.(*FileTypeDef); !ok || ftd.Mark != "character" {
+		t.Fatalf("file type def: %#v", td0.Def)
+	}
+	td1 := ds[2].(*TypeDecl)
+	if ad, ok := td1.Def.(*AccessDef); !ok || ad.Mark != "rec_t" {
+		t.Fatalf("access type def: %#v", td1.Def)
+	}
+	f1 := ds[3].(*FileDecl)
+	if f1.Names[0] != "f1" || f1.SubtypeMark != "text" || f1.LogicalName != nil {
+		t.Fatalf("file decl 1: %#v", f1)
+	}
+	f2 := ds[4].(*FileDecl)
+	if f2.OpenMode == nil || f2.LogicalName == nil {
+		t.Fatalf("file decl 2 (open..is): %#v", f2)
+	}
+	// round-trip
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\nuse work.textio.all;\nfile f2 : text open read_mode is \"data.txt\";\ntype ft is file of character;\nend package;"))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("file/access/use not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}

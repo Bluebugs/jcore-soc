@@ -1187,9 +1187,12 @@ func (p *parser) parseIfStmt(pos Pos, label string) Stmt {
 // isDeclStart reports whether k begins a declaration handled by parseDecl.
 func isDeclStart(k Kind) bool {
 	switch k {
-	case CONSTANT, SIGNAL, VARIABLE, SHARED, SUBTYPE, TYPE, COMPONENT, FUNCTION, PROCEDURE, PURE, IMPURE, ATTRIBUTE, ALIAS, GROUP:
+	case CONSTANT, SIGNAL, VARIABLE, SHARED, SUBTYPE, TYPE, COMPONENT, FUNCTION, PROCEDURE, PURE, IMPURE, ATTRIBUTE, ALIAS, GROUP, FILE, USE:
 		return true
 	}
+	// Note: FOR (configuration specification) is handled by parseDecl but is
+	// intentionally absent here — in a generate body `for` introduces a nested
+	// generate statement, so it must not be consumed as a declaration.
 	return false
 }
 
@@ -1263,6 +1266,10 @@ func (p *parser) parseDecl() Decl {
 		return p.parseAliasDecl()
 	case GROUP:
 		return p.parseGroupDecl()
+	case FILE:
+		return p.parseFileDecl()
+	case USE:
+		return p.parseUseClause()
 	case FOR:
 		return p.parseConfigSpec()
 	default:
@@ -1270,6 +1277,24 @@ func (p *parser) parseDecl() Decl {
 		p.advance() // avoid infinite loop
 		return nil
 	}
+}
+
+// parseFileDecl parses `file names : subtype_mark [ [open expr] is expr ] ;`.
+func (p *parser) parseFileDecl() Decl {
+	pos := p.expect(FILE).Pos
+	names := p.parseNameList()
+	p.expect(COLON)
+	mark := p.parseDottedName()
+	var openMode, logical Expr
+	if p.accept(OPEN) {
+		openMode = p.parseExpr()
+		p.expect(IS)
+		logical = p.parseExpr()
+	} else if p.accept(IS) {
+		logical = p.parseExpr()
+	}
+	p.expect(SEMICOLON)
+	return &FileDecl{P: pos, Names: names, SubtypeMark: mark, OpenMode: openMode, LogicalName: logical}
 }
 
 // parseConfigSpec parses a configuration specification:
@@ -1463,6 +1488,16 @@ func (p *parser) parseTypeDecl() *TypeDecl {
 			parts = append(parts, text)
 		}
 		def = &ArrayDef{P: apos, Text: strings.Join(parts, " ")}
+
+	case FILE:
+		fpos := p.advance().Pos // consume FILE
+		p.expect(OF)
+		def = &FileTypeDef{P: fpos, Mark: p.parseDottedName()}
+
+	case ACCESS:
+		apos := p.advance().Pos // consume ACCESS
+		mark, _ := p.parseSubtypeIndication()
+		def = &AccessDef{P: apos, Mark: mark}
 
 	default:
 		p.errorf(p.cur().Pos, "unsupported type definition starting with %v", p.cur().Kind)
