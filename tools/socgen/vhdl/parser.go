@@ -790,6 +790,7 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	target := p.parseName()
 	if p.at(LE) {
 		p.advance() // consume '<='
+		delay := p.parseDelayMechanism()
 		wf := p.parseWaveform()
 		if p.at(WHEN) {
 			var conds []*CondWaveform
@@ -806,10 +807,10 @@ func (p *parser) parseConcurrentStmt() Stmt {
 				}
 			}
 			p.expect(SEMICOLON)
-			return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Conds: conds}
+			return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Delay: delay, Conds: conds}
 		}
 		p.expect(SEMICOLON)
-		return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Waveform: wf}
+		return &ConcurrentSignalAssign{P: pos, Label: label, Target: target, Delay: delay, Waveform: wf}
 	}
 	// Concurrent procedure call: name(args) ;  (a call expression ending in ';')
 	if _, ok := target.(*CallExpr); ok && p.at(SEMICOLON) {
@@ -842,6 +843,24 @@ func (p *parser) procCall(pos Pos, label string, target Expr) Stmt {
 	}
 }
 
+// parseDelayMechanism consumes an optional signal-assignment delay mechanism
+// preceding a waveform: `transport`, `inertial`, or `reject <expr> inertial`.
+// Returns nil when none is present.
+func (p *parser) parseDelayMechanism() *DelayMechanism {
+	if p.accept(TRANSPORT) {
+		return &DelayMechanism{Transport: true}
+	}
+	if p.accept(REJECT) {
+		rej := p.parseExpr()
+		p.expect(INERTIAL)
+		return &DelayMechanism{Reject: rej}
+	}
+	if p.accept(INERTIAL) {
+		return &DelayMechanism{}
+	}
+	return nil
+}
+
 // parseWaveformElem parses `value [after time]`.
 func (p *parser) parseWaveformElem() *WaveformElem {
 	v := p.parseExpr()
@@ -869,6 +888,7 @@ func (p *parser) parseSelectedAssign(pos Pos, label string) Stmt {
 	p.expect(SELECT)
 	target := p.parseName()
 	p.expect(LE) // <=
+	delay := p.parseDelayMechanism()
 	var alts []*SelectedWaveform
 	for {
 		wf := p.parseWaveform() // stops at `when` (when is not a `,`)
@@ -880,7 +900,7 @@ func (p *parser) parseSelectedAssign(pos Pos, label string) Stmt {
 		}
 	}
 	p.expect(SEMICOLON)
-	return &SelectedSignalAssign{P: pos, Label: label, Expr: sel, Target: target, Alts: alts}
+	return &SelectedSignalAssign{P: pos, Label: label, Expr: sel, Target: target, Delay: delay, Alts: alts}
 }
 
 // parseGenerate parses a for/if generate statement (label already consumed).
@@ -1014,9 +1034,10 @@ func (p *parser) parseSequentialStmt() Stmt {
 	target := p.parseName()
 	if p.at(LE) {
 		p.advance() // '<='
+		delay := p.parseDelayMechanism()
 		wf := p.parseWaveform()
 		p.expect(SEMICOLON)
-		return &SignalAssignStmt{P: pos, Label: label, Target: target, Waveform: wf}
+		return &SignalAssignStmt{P: pos, Label: label, Target: target, Delay: delay, Waveform: wf}
 	}
 	if p.at(ASSIGN) {
 		p.advance() // ':='

@@ -190,12 +190,20 @@ type SelectedWaveform struct {
 	Choices  []Expr // an `others` choice is an *Ident
 }
 
+// DelayMechanism is a signal-assignment delay: `transport`, `inertial`, or
+// `reject <time> inertial`. Plain struct (not a Node); walked via its assign node.
+type DelayMechanism struct {
+	Transport bool // true => transport; false => inertial
+	Reject    Expr // reject time (nil unless `reject <expr> inertial`)
+}
+
 // SelectedSignalAssign is `with expr select target <= { waveform when choices , } ;`.
 type SelectedSignalAssign struct {
 	P      Pos
 	Label  string
 	Expr   Expr
 	Target Expr
+	Delay  *DelayMechanism
 	Alts   []*SelectedWaveform
 }
 
@@ -219,6 +227,7 @@ type ConcurrentSignalAssign struct {
 	P        Pos
 	Label    string
 	Target   Expr
+	Delay    *DelayMechanism
 	Waveform []*WaveformElem
 	Conds    []*CondWaveform
 }
@@ -356,7 +365,13 @@ func (n *ProcessStmt) End() Pos {
 func (n *ProcessStmt) stmtNode() {}
 
 // SignalAssignStmt is a sequential `[label:] target <= waveform ;`.
-type SignalAssignStmt struct{ P Pos; Label string; Target Expr; Waveform []*WaveformElem }
+type SignalAssignStmt struct {
+	P        Pos
+	Label    string
+	Target   Expr
+	Delay    *DelayMechanism
+	Waveform []*WaveformElem
+}
 
 func (n *SignalAssignStmt) Pos() Pos { return n.P }
 func (n *SignalAssignStmt) End() Pos {

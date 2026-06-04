@@ -92,6 +92,9 @@ func Walk(v Visitor, node Node) {
 	// statements
 	case *ConcurrentSignalAssign:
 		Walk(v, n.Target)
+		if n.Delay != nil && n.Delay.Reject != nil {
+			Walk(v, n.Delay.Reject)
+		}
 		for _, el := range n.Waveform {
 			if el.Value != nil {
 				Walk(v, el.Value)
@@ -149,6 +152,9 @@ func Walk(v Visitor, node Node) {
 		}
 	case *SignalAssignStmt:
 		Walk(v, n.Target)
+		if n.Delay != nil && n.Delay.Reject != nil {
+			Walk(v, n.Delay.Reject)
+		}
 		for _, el := range n.Waveform {
 			if el.Value != nil {
 				Walk(v, el.Value)
@@ -254,6 +260,9 @@ func Walk(v Visitor, node Node) {
 		}
 		if n.Target != nil {
 			Walk(v, n.Target)
+		}
+		if n.Delay != nil && n.Delay.Reject != nil {
+			Walk(v, n.Delay.Reject)
 		}
 		for _, alt := range n.Alts {
 			for _, el := range alt.Waveform {

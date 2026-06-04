@@ -164,6 +164,7 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		printExpr(b, n.Target)
 		b.WriteString(" <= ")
+		printDelay(b, n.Delay)
 		if len(n.Waveform) > 0 {
 			printWaveform(b, n.Waveform)
 		} else {
@@ -285,6 +286,7 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		}
 		printExpr(b, n.Target)
 		b.WriteString(" <= ")
+		printDelay(b, n.Delay)
 		printWaveform(b, n.Waveform)
 		b.WriteByte(';')
 	case *VariableAssignStmt:
@@ -484,6 +486,7 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 		b.WriteString(" select ")
 		printExpr(b, n.Target)
 		b.WriteString(" <= ")
+		printDelay(b, n.Delay)
 		for i, alt := range n.Alts {
 			if i > 0 {
 				b.WriteString(", ")
@@ -509,6 +512,24 @@ func printSeqStmts(b *strings.Builder, stmts []Stmt, indent string) {
 		printStmt(b, s, indent+"  ")
 		b.WriteByte('\n')
 	}
+}
+
+// printDelay prints an optional delay mechanism before a waveform.
+func printDelay(b *strings.Builder, d *DelayMechanism) {
+	if d == nil {
+		return
+	}
+	if d.Transport {
+		b.WriteString("transport ")
+		return
+	}
+	if d.Reject != nil {
+		b.WriteString("reject ")
+		printExpr(b, d.Reject)
+		b.WriteString(" inertial ")
+		return
+	}
+	b.WriteString("inertial ")
 }
 
 // printWaveform prints `value [after time]{, value after time}`.

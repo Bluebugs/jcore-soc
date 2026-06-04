@@ -1701,6 +1701,126 @@ func TestParseMultiUnitContext(t *testing.T) {
 	}
 }
 
+// TestParseDelayMechanism verifies parsing and round-trip of the optional signal-
+// assignment delay mechanism: transport, inertial, and reject <time> inertial.
+func TestParseDelayMechanism(t *testing.T) {
+	// Helper: wrap a concurrent signal assignment in a minimal architecture.
+	concurrentArch := func(assign string) string {
+		return "architecture rtl of e is\nbegin\n  " + assign + "\nend architecture;\n"
+	}
+	// Helper: wrap a sequential signal assignment in a process inside an architecture.
+	sequentialProc := func(assign string) string {
+		return "architecture rtl of e is\nbegin\n  process\n  begin\n    " + assign + "\n  end process;\nend architecture;\n"
+	}
+
+	// Case 1: concurrent transport delay — q <= transport d after 5 ns;
+	t.Run("concurrent_transport", func(t *testing.T) {
+		src := concurrentArch("q <= transport d after 5 ns;")
+		u := roundTripSrc(t, src)
+		arch, ok := u.(*ArchitectureBody)
+		if !ok {
+			t.Fatalf("expected *ArchitectureBody, got %T", u)
+		}
+		sa, ok := arch.Stmts[0].(*ConcurrentSignalAssign)
+		if !ok {
+			t.Fatalf("expected *ConcurrentSignalAssign, got %T", arch.Stmts[0])
+		}
+		if sa.Delay == nil {
+			t.Fatal("Delay should not be nil")
+		}
+		if !sa.Delay.Transport {
+			t.Fatalf("expected Transport=true, got false")
+		}
+	})
+
+	// Case 2: sequential transport delay — q <= transport d;
+	t.Run("sequential_transport", func(t *testing.T) {
+		src := sequentialProc("q <= transport d;")
+		u := roundTripSrc(t, src)
+		arch, ok := u.(*ArchitectureBody)
+		if !ok {
+			t.Fatalf("expected *ArchitectureBody, got %T", u)
+		}
+		proc, ok := arch.Stmts[0].(*ProcessStmt)
+		if !ok {
+			t.Fatalf("expected *ProcessStmt, got %T", arch.Stmts[0])
+		}
+		sa, ok := proc.Stmts[0].(*SignalAssignStmt)
+		if !ok {
+			t.Fatalf("expected *SignalAssignStmt, got %T", proc.Stmts[0])
+		}
+		if sa.Delay == nil {
+			t.Fatal("Delay should not be nil")
+		}
+		if !sa.Delay.Transport {
+			t.Fatalf("expected Transport=true, got false")
+		}
+	})
+
+	// Case 3: reject <time> inertial — q <= reject 2 ns inertial d;
+	t.Run("reject_inertial", func(t *testing.T) {
+		src := concurrentArch("q <= reject 2 ns inertial d;")
+		u := roundTripSrc(t, src)
+		arch, ok := u.(*ArchitectureBody)
+		if !ok {
+			t.Fatalf("expected *ArchitectureBody, got %T", u)
+		}
+		sa, ok := arch.Stmts[0].(*ConcurrentSignalAssign)
+		if !ok {
+			t.Fatalf("expected *ConcurrentSignalAssign, got %T", arch.Stmts[0])
+		}
+		if sa.Delay == nil {
+			t.Fatal("Delay should not be nil")
+		}
+		if sa.Delay.Transport {
+			t.Fatal("expected Transport=false for reject inertial")
+		}
+		if sa.Delay.Reject == nil {
+			t.Fatal("expected Reject != nil for reject inertial")
+		}
+	})
+
+	// Case 4: plain inertial — q <= inertial d;
+	t.Run("plain_inertial", func(t *testing.T) {
+		src := concurrentArch("q <= inertial d;")
+		u := roundTripSrc(t, src)
+		arch, ok := u.(*ArchitectureBody)
+		if !ok {
+			t.Fatalf("expected *ArchitectureBody, got %T", u)
+		}
+		sa, ok := arch.Stmts[0].(*ConcurrentSignalAssign)
+		if !ok {
+			t.Fatalf("expected *ConcurrentSignalAssign, got %T", arch.Stmts[0])
+		}
+		if sa.Delay == nil {
+			t.Fatal("Delay should not be nil")
+		}
+		if sa.Delay.Transport {
+			t.Fatal("expected Transport=false for inertial")
+		}
+		if sa.Delay.Reject != nil {
+			t.Fatal("expected Reject == nil for plain inertial")
+		}
+	})
+
+	// Case 5: regression — q <= d; should have Delay == nil (unchanged behavior)
+	t.Run("no_delay_regression", func(t *testing.T) {
+		src := concurrentArch("q <= d;")
+		u := roundTripSrc(t, src)
+		arch, ok := u.(*ArchitectureBody)
+		if !ok {
+			t.Fatalf("expected *ArchitectureBody, got %T", u)
+		}
+		sa, ok := arch.Stmts[0].(*ConcurrentSignalAssign)
+		if !ok {
+			t.Fatalf("expected *ConcurrentSignalAssign, got %T", arch.Stmts[0])
+		}
+		if sa.Delay != nil {
+			t.Fatalf("expected Delay == nil for plain assignment, got %+v", sa.Delay)
+		}
+	})
+}
+
 func TestParseSuffixAttribute(t *testing.T) {
 	// Case 1: arr(i)'length — AttributeName wrapping a CallExpr.
 	e1 := mustParseExpr(t, "arr(i)'length")
