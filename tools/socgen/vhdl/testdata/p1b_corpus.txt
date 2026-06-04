@@ -14,9 +14,15 @@ components/cpu/cache/cache_pkg.vhd
 components/cpu/cache/dcache.vhd
 components/cpu/cache/dcache_adapter.vhd
 components/cpu/cache/dcache_ram.vhd
+components/cpu/cache/dcache_tb.vhd
 components/cpu/cache/icache.vhd
 components/cpu/cache/icache_adapter.vhd
 components/cpu/cache/icache_ram.vhd
+components/cpu/cache/icache_tb.vhd
+components/cpu/cache/tests/dctest13h_we_replace/dcache_tb.vhd
+components/cpu/cache/tests/dctest39h_writepath_accvari8/dcache_tb.vhd
+components/cpu/cache/tests/dctest40h_tas_variation/dcache_tb.vhd
+components/cpu/cache/tests/ictest02h/icache_tb.vhd
 components/cpu/core/components_pkg.vhd
 components/cpu/core/cpu.vhd
 components/cpu/core/cpu_asic.vhd
@@ -157,6 +163,11 @@ lib/memory_tech_lib/tech/inferred/ram_32x2048.vhd
 lib/memory_tech_lib/tech/inferred/ram_32x32.vhd
 lib/memory_tech_lib/tech/inferred/rom_1r_infer.vhd
 lib/memory_tech_lib/tech/sim/mem_sim_config.vhd
+lib/memory_tech_lib/tech/sim/ram_18x2048_1rw_sim.vhd
+lib/memory_tech_lib/tech/sim/ram_2x8x2048_2rw_sim.vhd
+lib/memory_tech_lib/tech/sim/ram_2x8x256_1rw_sim.vhd
+lib/memory_tech_lib/tech/sim/ram_32x1x512_2rw_sim.vhd
+lib/memory_tech_lib/tech/sim/rom_32x2048_1r_sim.vhd
 lib/memory_tech_lib/tests/mem_test_pkg.vhd
 lib/memory_tech_lib/tests/memories.vhd
 lib/memory_tech_lib/tests/memory_tb.vhd
