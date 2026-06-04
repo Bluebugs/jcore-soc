@@ -182,6 +182,36 @@ type WaveformElem struct {
 	After Expr // nil if no `after` clause
 }
 
+// SelectedWaveform is one `waveform when choices` alternative of a selected
+// signal assignment.
+type SelectedWaveform struct {
+	Waveform []*WaveformElem
+	Choices  []Expr // an `others` choice is an *Ident
+}
+
+// SelectedSignalAssign is `with expr select target <= { waveform when choices , } ;`.
+type SelectedSignalAssign struct {
+	P      Pos
+	Label  string
+	Expr   Expr
+	Target Expr
+	Alts   []*SelectedWaveform
+}
+
+func (n *SelectedSignalAssign) Pos() Pos { return n.P }
+func (n *SelectedSignalAssign) End() Pos {
+	if k := len(n.Alts); k > 0 {
+		if m := len(n.Alts[k-1].Choices); m > 0 {
+			return n.Alts[k-1].Choices[m-1].End()
+		}
+	}
+	if n.Target != nil {
+		return n.Target.End()
+	}
+	return n.P
+}
+func (n *SelectedSignalAssign) stmtNode() {}
+
 // ConcurrentSignalAssign is `[label:] target <= ... ;`. A simple assignment sets
 // Waveform (Conds nil); a conditional assignment sets Conds (Waveform nil).
 type ConcurrentSignalAssign struct {

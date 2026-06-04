@@ -474,6 +474,30 @@ func printStmt(b *strings.Builder, s Stmt, indent string) {
 			b.WriteByte(')')
 		}
 		b.WriteByte(';')
+	case *SelectedSignalAssign:
+		if n.Label != "" {
+			b.WriteString(n.Label)
+			b.WriteString(" : ")
+		}
+		b.WriteString("with ")
+		printExpr(b, n.Expr)
+		b.WriteString(" select ")
+		printExpr(b, n.Target)
+		b.WriteString(" <= ")
+		for i, alt := range n.Alts {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			printWaveform(b, alt.Waveform)
+			b.WriteString(" when ")
+			for j, c := range alt.Choices {
+				if j > 0 {
+					b.WriteString(" | ")
+				}
+				printExpr(b, c)
+			}
+		}
+		b.WriteByte(';')
 	}
 }
 

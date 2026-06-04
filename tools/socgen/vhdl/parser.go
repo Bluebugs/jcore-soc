@@ -722,9 +722,11 @@ func (p *parser) parseConcurrentStmt() Stmt {
 	// statements introduced by a keyword (process/generate/block/...) are
 	// deferred here; entity/component/configuration dispatch to instantiation.
 	switch p.cur().Kind {
-	case BLOCK, WITH, GENERATE:
+	case BLOCK, GENERATE:
 		p.errorf(p.cur().Pos, "deferred: %v concurrent statement not yet parsed", p.cur().Kind)
 		return nil
+	case WITH:
+		return p.parseSelectedAssign(pos, label)
 	case ASSERT:
 		return p.parseAssertStmt(pos, label)
 	case POSTPONED, PROCESS:
@@ -834,6 +836,28 @@ func (p *parser) parseWaveform() []*WaveformElem {
 		wf = append(wf, p.parseWaveformElem())
 	}
 	return wf
+}
+
+// parseSelectedAssign parses `with expr select target <= waveform when choices
+// {, waveform when choices} ;`.
+func (p *parser) parseSelectedAssign(pos Pos, label string) Stmt {
+	p.expect(WITH)
+	sel := p.parseExpr()
+	p.expect(SELECT)
+	target := p.parseName()
+	p.expect(LE) // <=
+	var alts []*SelectedWaveform
+	for {
+		wf := p.parseWaveform() // stops at `when` (when is not a `,`)
+		p.expect(WHEN)
+		choices := p.parseChoices()
+		alts = append(alts, &SelectedWaveform{Waveform: wf, Choices: choices})
+		if !p.accept(COMMA) {
+			break
+		}
+	}
+	p.expect(SEMICOLON)
+	return &SelectedSignalAssign{P: pos, Label: label, Expr: sel, Target: target, Alts: alts}
 }
 
 // parseGenerate parses a for/if generate statement (label already consumed).

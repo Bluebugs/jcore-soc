@@ -240,6 +240,26 @@ func Walk(v Visitor, node Node) {
 		for _, a := range n.Args {
 			Walk(v, a)
 		}
+	case *SelectedSignalAssign:
+		if n.Expr != nil {
+			Walk(v, n.Expr)
+		}
+		if n.Target != nil {
+			Walk(v, n.Target)
+		}
+		for _, alt := range n.Alts {
+			for _, el := range alt.Waveform {
+				if el.Value != nil {
+					Walk(v, el.Value)
+				}
+				if el.After != nil {
+					Walk(v, el.After)
+				}
+			}
+			for _, c := range alt.Choices {
+				Walk(v, c)
+			}
+		}
 
 	// declarations
 	case *ConstantDecl:

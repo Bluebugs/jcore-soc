@@ -1316,3 +1316,33 @@ func TestParseNamedCallArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSelectedAssign(t *testing.T) {
+	src := `architecture rtl of e is
+begin
+  with sel select
+    q <= a when "00",
+         b when "01" | "10",
+         c when others;
+end architecture;`
+	df, errs := ParseFile(NewFileSet(), "t.vhd", []byte(src))
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	sa, ok := df.Units[0].(*ArchitectureBody).Stmts[0].(*SelectedSignalAssign)
+	if !ok || sa.Expr == nil || sa.Target == nil || len(sa.Alts) != 3 {
+		t.Fatalf("selected assign: %#v", df.Units[0].(*ArchitectureBody).Stmts[0])
+	}
+	if len(sa.Alts[1].Choices) != 2 { // "01" | "10"
+		t.Fatalf("multi-choice alt: %#v", sa.Alts[1])
+	}
+	if len(sa.Alts[0].Waveform) != 1 {
+		t.Fatalf("alt0 waveform: %#v", sa.Alts[0])
+	}
+	// round-trip
+	out := Print(df)
+	df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+	if len(errs2) != 0 || !equalAST(df, df2) {
+		t.Fatalf("selected assign not AST-stable: errs=%v\n%s", errs2, out)
+	}
+}
