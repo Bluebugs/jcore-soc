@@ -100,6 +100,7 @@ components/misc/gpio_pkg.vhd
 components/misc/misc_pkg.vhd
 components/misc/pio.vhd
 components/misc/spi.vhd
+components/misc/spi3_tb.vhd
 components/misc/spi_merge.vhd
 components/misc/tests/gpio_tap.vhd
 components/misc/tests/multi_master_bus_mux_tap.vhd
