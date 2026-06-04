@@ -1288,3 +1288,31 @@ end architecture;`
 		t.Fatalf("suffix-chain name not AST-stable: errs=%v\n%s", errs2, out)
 	}
 }
+
+func TestParseNamedCallArgs(t *testing.T) {
+	// named association
+	e := mustParseExpr(t, "f(clk => c, rst => r)")
+	ce, ok := e.(*CallExpr)
+	if !ok || len(ce.Args) != 2 || ce.Args[0].Formal != "clk" || ce.Args[1].Formal != "rst" {
+		t.Fatalf("named call: %#v", e)
+	}
+	// positional (Formal == "")
+	cp, ok := mustParseExpr(t, "f(a, b)").(*CallExpr)
+	if !ok || len(cp.Args) != 2 || cp.Args[0].Formal != "" {
+		t.Fatalf("positional call: %#v", cp)
+	}
+	// indexed name (still a CallExpr, positional)
+	ci, ok := mustParseExpr(t, "arr(i)").(*CallExpr)
+	if !ok || len(ci.Args) != 1 || ci.Args[0].Formal != "" {
+		t.Fatalf("indexed: %#v", ci)
+	}
+	// round-trip both forms (as constant defaults)
+	for _, src := range []string{"f(clk => c, rst => r)", "f(a, b)"} {
+		df, errs := ParseFile(NewFileSet(), "t.vhd", []byte("package p is\nconstant k : t := "+src+";\nend package;"))
+		out := Print(df)
+		df2, errs2 := ParseFile(NewFileSet(), "t.vhd", []byte(out))
+		if len(errs) != 0 || len(errs2) != 0 || !equalAST(df, df2) {
+			t.Fatalf("call args not AST-stable for %q: e=%v e2=%v\n%s", src, errs, errs2, out)
+		}
+	}
+}

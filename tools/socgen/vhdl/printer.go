@@ -873,12 +873,7 @@ func printExpr(b *strings.Builder, e Expr) {
 	case *CallExpr:
 		printExpr(b, n.Fun)
 		b.WriteByte('(')
-		for i, arg := range n.Args {
-			if i > 0 {
-				b.WriteString(", ")
-			}
-			printExpr(b, arg)
-		}
+		printAssocList(b, n.Args)
 		b.WriteByte(')')
 	case *SelectorExpr:
 		printExpr(b, n.X)

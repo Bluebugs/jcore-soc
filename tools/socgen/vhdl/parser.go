@@ -803,17 +803,12 @@ func (p *parser) parseConcurrentStmt() Stmt {
 }
 
 // procCall builds a ProcedureCallStmt from a parsed name/call target. Positional
-// CallExpr args become positional AssocElements; a bare Ident is a parameterless
-// call. (Named-association procedure calls are not produced here — parseName
-// cannot parse `=>` in a call suffix, so such files are excluded.)
+// CallExpr.Args are already AssocElements (named or positional); a bare Ident is
+// a parameterless call.
 func (p *parser) procCall(pos Pos, label string, target Expr) Stmt {
 	switch t := target.(type) {
 	case *CallExpr:
-		args := make([]*AssocElement, 0, len(t.Args))
-		for _, a := range t.Args {
-			args = append(args, &AssocElement{P: a.Pos(), Actual: a})
-		}
-		return &ProcedureCallStmt{P: pos, Label: label, Name: exprString(t.Fun), Args: args}
+		return &ProcedureCallStmt{P: pos, Label: label, Name: exprString(t.Fun), Args: t.Args}
 	case *Ident:
 		return &ProcedureCallStmt{P: pos, Label: label, Name: t.Name}
 	default:
@@ -1809,11 +1804,11 @@ func (p *parser) parseName() Expr {
 		switch {
 		case p.at(LPAREN):
 			lparen := p.advance() // consume '('
-			var args []Expr
+			var args []*AssocElement
 			if !p.at(RPAREN) {
-				args = append(args, p.parseExpr())
+				args = append(args, p.parseAssocElement())
 				for p.accept(COMMA) {
-					args = append(args, p.parseExpr())
+					args = append(args, p.parseAssocElement())
 				}
 			}
 			rparen := p.expect(RPAREN)

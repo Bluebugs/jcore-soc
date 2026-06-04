@@ -698,7 +698,7 @@ func (n *PhysicalLit) exprNode() {}
 type BasicLit    struct{ ValuePos Pos; Kind Kind; Value string } // INT/REAL/BASEDLIT/CHARLIT/STRINGLIT/BITSTRINGLIT
 type Ident       struct{ NamePos Pos; Name string }              // a (possibly compound/attributed) name; full decomposition into SelectorExpr is deferred
 type Range       struct{ Left Expr; DirPos Pos; Dir Kind; Right Expr } // Dir is TO or DOWNTO
-type CallExpr     struct{ Fun Expr; Lparen Pos; Args []Expr; Rparen Pos } // also indexed-name / slice / type-conversion — VHDL can't disambiguate syntactically
+type CallExpr     struct{ Fun Expr; Lparen Pos; Args []*AssocElement; Rparen Pos } // also indexed-name / slice / type-conversion — VHDL can't disambiguate syntactically; positional args have Formal ""
 type BinaryExpr  struct{ X Expr; OpPos Pos; Op Kind; Y Expr }
 type UnaryExpr   struct{ OpPos Pos; Op Kind; X Expr } // abs / not / unary + / unary -
 type ParenExpr   struct{ Lparen Pos; X Expr; Rparen Pos }
