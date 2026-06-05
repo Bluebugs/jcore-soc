@@ -3,6 +3,7 @@ package design
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/j-core/jcore-soc/tools/socgen/iface"
 )
@@ -20,6 +21,21 @@ func Validate(d *Design, lib *iface.Library) []error {
 			if !ok {
 				errs = append(errs, fmt.Errorf("%s: configuration %q not found", ctx, configName))
 				return nil
+			}
+			if cfg.Arch != "" {
+				archs := lib.ArchitecturesOf(cfg.Entity)
+				if len(archs) > 0 {
+					found := false
+					for _, a := range archs {
+						if strings.EqualFold(a.Name, cfg.Arch) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						errs = append(errs, fmt.Errorf("%s: configuration %q architecture %q not found for entity %q", ctx, configName, cfg.Arch, cfg.Entity))
+					}
+				}
 			}
 			entityName = cfg.Entity
 		}
@@ -40,19 +56,19 @@ func Validate(d *Design, lib *iface.Library) []error {
 		}
 		gset := nameSet(len(e.Generics))
 		for _, g := range e.Generics {
-			gset[lc(g.Name)] = struct{}{}
+			gset[strings.ToLower(g.Name)] = struct{}{}
 		}
 		pset := nameSet(len(e.Ports))
 		for _, p := range e.Ports {
-			pset[lc(p.Name)] = struct{}{}
+			pset[strings.ToLower(p.Name)] = struct{}{}
 		}
 		for _, k := range sortedKeys(generics) {
-			if _, ok := gset[lc(k)]; !ok {
+			if _, ok := gset[strings.ToLower(k)]; !ok {
 				errs = append(errs, fmt.Errorf("%s: generic %q not on entity %q", ctx, k, e.Name))
 			}
 		}
 		for _, k := range sortedKeys(ports) {
-			if _, ok := pset[lc(k)]; !ok {
+			if _, ok := pset[strings.ToLower(k)]; !ok {
 				errs = append(errs, fmt.Errorf("%s: port %q not on entity %q", ctx, k, e.Name))
 			}
 		}
@@ -68,12 +84,14 @@ func Validate(d *Design, lib *iface.Library) []error {
 		e := resolveEntity(cls.Entity, cls.Configuration, ctx)
 		checkIface(e, dev.Generics, dev.Ports, ctx)
 	}
-	for name, te := range d.TopEntities {
+	for _, name := range sortedEntityKeys(d.TopEntities) {
+		te := d.TopEntities[name]
 		ctx := "top-entity " + name
 		e := resolveEntity(te.Entity, te.Configuration, ctx)
 		checkIface(e, te.Generics, te.Ports, ctx)
 	}
-	for name, te := range d.PadringEntities {
+	for _, name := range sortedEntityKeys(d.PadringEntities) {
+		te := d.PadringEntities[name]
 		ctx := "padring-entity " + name
 		e := resolveEntity(te.Entity, te.Configuration, ctx)
 		checkIface(e, te.Generics, te.Ports, ctx)
@@ -89,15 +107,16 @@ func devID(d *Device) string {
 }
 
 func nameSet(n int) map[string]struct{} { return make(map[string]struct{}, n) }
-func lc(s string) string {
-	b := []byte(s)
-	for i := range b {
-		if b[i] >= 'A' && b[i] <= 'Z' {
-			b[i] += 'a' - 'A'
-		}
+
+func sortedEntityKeys(m map[string]*TopEntity) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
 	}
-	return string(b)
+	sort.Strings(ks)
+	return ks
 }
+
 func sortedKeys(m map[string]Value) []string {
 	ks := make([]string, 0, len(m))
 	for k := range m {

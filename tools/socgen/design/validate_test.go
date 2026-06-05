@@ -77,6 +77,30 @@ func errsToString(errs []error) string {
 	return b.String()
 }
 
+func TestValidateConfiguration(t *testing.T) {
+	lib := buildLib(t,
+		`entity cpu is port (clk : in std_logic); end entity;`,
+		`architecture rtl of cpu is begin end architecture;`,
+		`configuration cpu_cfg of cpu is for rtl end for; end configuration;`,
+	)
+	// happy path: class resolves entity via configuration; arch rtl exists.
+	ok := &Design{
+		DeviceClasses: map[string]*DeviceClass{"c": {Configuration: "cpu_cfg"}},
+		Devices:       []*Device{{Class: "c", Name: "cpu0", Ports: map[string]Value{"clk": {Kind: KindExpr, Text: "clk_sys"}}}},
+	}
+	if errs := Validate(ok, lib); len(errs) != 0 {
+		t.Fatalf("config happy path should pass: %v", errs)
+	}
+	// missing configuration:
+	bad := &Design{
+		DeviceClasses: map[string]*DeviceClass{"c": {Configuration: "ghost_cfg"}},
+		Devices:       []*Device{{Class: "c", Name: "d0"}},
+	}
+	if errsToString(Validate(bad, lib)) == "" {
+		t.Error("missing configuration should error")
+	}
+}
+
 func TestValidateAgainstCorpus(t *testing.T) {
 	root := os.Getenv("JCORE_SOC_ROOT")
 	if root == "" {
