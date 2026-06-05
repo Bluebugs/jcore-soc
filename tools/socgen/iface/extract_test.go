@@ -70,3 +70,48 @@ func TestExtractArchitecture(t *testing.T) {
 		t.Errorf("arch = %+v", archs[0])
 	}
 }
+
+func TestExtractPackage(t *testing.T) {
+	df := parse(t, `package bus_pkg is
+  constant WIDTH : integer := 32;
+  constant DEFERRED : integer;
+  subtype byte is std_logic_vector(7 downto 0);
+  type state_t is (idle, run, stop);
+  component fifo is
+    generic (depth : integer);
+    port (clk : in std_logic; full : out std_logic);
+  end component;
+end package;`)
+	lib, errs := Extract([]*vhdl.DesignFile{df})
+	if len(errs) != 0 {
+		t.Fatalf("extract errors: %v", errs)
+	}
+	p, ok := lib.Package("bus_pkg")
+	if !ok {
+		t.Fatal("package bus_pkg not found")
+	}
+	if len(p.Constants) != 2 {
+		t.Fatalf("constants: got %d want 2", len(p.Constants))
+	}
+	if p.Constants[0].Name != "WIDTH" || p.Constants[0].Type.String() != "integer" || p.Constants[0].Value == nil {
+		t.Errorf("const0 = %+v", p.Constants[0])
+	}
+	if p.Constants[1].Name != "DEFERRED" || p.Constants[1].Value != nil {
+		t.Errorf("const1 should be deferred: %+v", p.Constants[1])
+	}
+	if len(p.Types) != 2 { // subtype byte + type state_t
+		t.Fatalf("types: got %d want 2", len(p.Types))
+	}
+	if len(p.Components) != 1 || p.Components[0].Name != "fifo" {
+		t.Fatalf("components: %+v", p.Components)
+	}
+	if len(p.Components[0].Ports) != 2 || p.Components[0].Ports[1].Name != "full" || p.Components[0].Ports[1].Dir != "out" {
+		t.Errorf("component ports: %+v", p.Components[0].Ports)
+	}
+	if te, ok := lib.ResolveType("byte"); !ok || te.Name != "byte" {
+		t.Errorf("ResolveType(byte) = %v %v", te, ok)
+	}
+	if te, ok := lib.ResolveType("state_t"); !ok || te.Name != "state_t" {
+		t.Errorf("ResolveType(state_t) = %v %v", te, ok)
+	}
+}

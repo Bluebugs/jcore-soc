@@ -10,10 +10,10 @@ import (
 // Library is the extracted interface model for a set of design files.
 type Library struct {
 	Entities       map[string]*Entity
-	Packages       map[string]*Package        // populated in Task 2
+	Packages       map[string]*Package
 	Architectures  map[string][]*Architecture // keyed by ENTITY name
 	Configurations map[string]*Configuration  // populated in Task 3
-	index          map[string]Symbol          // populated in Task 2
+	index          map[string]Symbol
 }
 
 // TypeRef is a type mark plus an optional constraint, kept AS WRITTEN.
@@ -92,6 +92,25 @@ func (l *Library) Entity(name string) (*Entity, bool) {
 
 func (l *Library) ArchitecturesOf(entity string) []*Architecture {
 	return l.Architectures[lower(entity)]
+}
+
+func (l *Library) Package(name string) (*Package, bool) {
+	p, ok := l.Packages[lower(name)]
+	return p, ok
+}
+
+func (l *Library) ResolveType(name string) (*TypeEntry, bool) {
+	s, ok := l.index[lower(name)]
+	if !ok || (s.Kind != "type" && s.Kind != "subtype") {
+		return nil, false
+	}
+	pkg := l.Packages[lower(s.Package)]
+	for _, te := range pkg.Types {
+		if lower(te.Name) == lower(name) {
+			return te, true
+		}
+	}
+	return nil, false
 }
 
 func lower(s string) string { return strings.ToLower(s) }
