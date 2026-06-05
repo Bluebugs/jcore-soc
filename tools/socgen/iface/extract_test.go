@@ -215,4 +215,35 @@ func TestExtractCorpusSmoke(t *testing.T) {
 	if len(lib.Entities) == 0 {
 		t.Error("expected at least one entity")
 	}
+	// concrete check: cpu2j0_pkg declares type cpu_data_o_t (verified via grep).
+	if _, ok := lib.ResolveType("cpu_data_o_t"); !ok {
+		t.Errorf("expected cpu2j0_pkg to declare type cpu_data_o_t")
+	}
+}
+
+func TestExtractDuplicatePackage(t *testing.T) {
+	a := parse(t, `package dup is end package;`)
+	b := parse(t, `package dup is end package;`)
+	_, errs := Extract([]*vhdl.DesignFile{a, b})
+	if len(errs) == 0 {
+		t.Fatal("expected a duplicate-package error")
+	}
+}
+
+func TestExtractDuplicateConfiguration(t *testing.T) {
+	a := parse(t, `configuration c of e is for rtl end for; end configuration;`)
+	b := parse(t, `configuration c of e is for rtl end for; end configuration;`)
+	_, errs := Extract([]*vhdl.DesignFile{a, b})
+	if len(errs) == 0 {
+		t.Fatal("expected a duplicate-configuration error")
+	}
+}
+
+func TestExtractDuplicateSymbol(t *testing.T) {
+	a := parse(t, `package p1 is constant SYM_COMMON : integer := 1; end package;`)
+	b := parse(t, `package p2 is constant SYM_COMMON : integer := 2; end package;`)
+	_, errs := Extract([]*vhdl.DesignFile{a, b})
+	if len(errs) == 0 {
+		t.Fatal("expected a duplicate-symbol error (SYM_COMMON in p1 and p2)")
+	}
 }
