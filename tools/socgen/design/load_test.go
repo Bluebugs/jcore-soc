@@ -1,0 +1,90 @@
+package design
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func loadString(t *testing.T, src string) (*Design, []error) {
+	t.Helper()
+	dir := t.TempDir()
+	p := filepath.Join(dir, "design.yaml")
+	if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return Load(p)
+}
+
+func TestLoadFlatDecode(t *testing.T) {
+	d, errs := loadString(t, `target: spartan6
+devices:
+  - class: aic
+    name: aic0
+    base-addr: 0xabcd0200
+    irq: 4
+    generics:
+      c_busperiod: CFG_CLK_CPU_PERIOD_NS
+      rtc_sec_length34b: false
+      num_cs: 2
+      bps: 19.2e3
+      label: !str hello
+    ports: { bstb_i: cpu0_data_master_en }
+zero-signals: [icache0_ctrl, dcache0_ctrl]
+`)
+	if len(errs) != 0 {
+		t.Fatalf("load errors: %v", errs)
+	}
+	if d.Target != "spartan6" || len(d.Devices) != 1 {
+		t.Fatalf("design = %+v", d)
+	}
+	dev := d.Devices[0]
+	if dev.Class != "aic" || dev.Name != "aic0" {
+		t.Errorf("device = %+v", dev)
+	}
+	if dev.BaseAddr == nil || uint64(*dev.BaseAddr) != 0xabcd0200 {
+		t.Errorf("base-addr = %v", dev.BaseAddr)
+	}
+	if dev.IRQ == nil || *dev.IRQ != 4 {
+		t.Errorf("irq = %v", dev.IRQ)
+	}
+	// verbatim-by-default + typed values
+	g := dev.Generics
+	if g["c_busperiod"].Kind != KindExpr || g["c_busperiod"].Text != "CFG_CLK_CPU_PERIOD_NS" {
+		t.Errorf("c_busperiod = %+v", g["c_busperiod"])
+	}
+	if g["rtc_sec_length34b"].Kind != KindBool || g["rtc_sec_length34b"].Bool != false {
+		t.Errorf("rtc = %+v", g["rtc_sec_length34b"])
+	}
+	if g["num_cs"].Kind != KindInt || g["num_cs"].Int != 2 {
+		t.Errorf("num_cs = %+v", g["num_cs"])
+	}
+	if g["bps"].Kind != KindFloat || g["bps"].Float != 19200 {
+		t.Errorf("bps = %+v", g["bps"])
+	}
+	if g["label"].Kind != KindStr || g["label"].Text != "hello" {
+		t.Errorf("label = %+v", g["label"])
+	}
+	if dev.Ports["bstb_i"].Kind != KindExpr || dev.Ports["bstb_i"].Text != "cpu0_data_master_en" {
+		t.Errorf("port = %+v", dev.Ports["bstb_i"])
+	}
+	if len(d.ZeroSignals) != 2 || d.ZeroSignals[0] != "icache0_ctrl" {
+		t.Errorf("zero-signals = %v", d.ZeroSignals)
+	}
+}
+
+// A function-call generic must survive as a verbatim Expr.
+func TestLoadFuncCallValue(t *testing.T) {
+	d, errs := loadString(t, `top-entities:
+  ddr_ctrl:
+    entity: ddr_fsm
+    generics: { READ_SAMPLE_TM: freq_to_read_sample_tm(CFG_CLK_MEM_FREQ_HZ) }
+`)
+	if len(errs) != 0 {
+		t.Fatalf("load errors: %v", errs)
+	}
+	v := d.TopEntities["ddr_ctrl"].Generics["READ_SAMPLE_TM"]
+	if v.Kind != KindExpr || v.Text != "freq_to_read_sample_tm(CFG_CLK_MEM_FREQ_HZ)" {
+		t.Errorf("call value = %+v", v)
+	}
+}

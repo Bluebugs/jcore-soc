@@ -1,0 +1,138 @@
+package design
+
+import (
+	"fmt"
+	"strconv"
+
+	"gopkg.in/yaml.v3"
+)
+
+type Design struct {
+	Target          string                  `yaml:"target"`
+	DeviceClasses   map[string]*DeviceClass `yaml:"device-classes"`
+	Devices         []*Device               `yaml:"devices"`
+	TopEntities     map[string]*TopEntity   `yaml:"top-entities"`
+	PadringEntities map[string]*TopEntity   `yaml:"padring-entities"`
+	MergeSignals    map[string][]string     `yaml:"merge-signals"`
+	ZeroSignals     []string                `yaml:"zero-signals"`
+	IRQ             map[string]*IRQEntry    `yaml:"irq"`
+}
+
+type DeviceClass struct {
+	Entity        string           `yaml:"entity"`
+	Configuration string           `yaml:"configuration"`
+	Desc          string           `yaml:"desc"`
+	DtName        string           `yaml:"dt-name"`
+	DtProps       map[string]any   `yaml:"dt-props"`
+	LeftAddrBit   int              `yaml:"left-addr-bit"`
+	Regs          []*Reg           `yaml:"regs"`
+	Generics      map[string]Value `yaml:"generics"`
+	Ports         map[string]Value `yaml:"ports"`
+	Requires      []string         `yaml:"requires"`
+}
+
+type Device struct {
+	Class    string           `yaml:"class"`
+	Name     string           `yaml:"name"`
+	BaseAddr *Hex             `yaml:"base-addr"`
+	IRQ      *int             `yaml:"irq"`
+	Generics map[string]Value `yaml:"generics"`
+	Ports    map[string]Value `yaml:"ports"`
+	DtProps  map[string]any   `yaml:"dt-props"`
+	DtStdout bool             `yaml:"dt-stdout"`
+}
+
+type TopEntity struct {
+	Entity        string           `yaml:"entity"`
+	Configuration string           `yaml:"configuration"`
+	Generics      map[string]Value `yaml:"generics"`
+	Ports         map[string]Value `yaml:"ports"`
+}
+
+type Reg struct {
+	Name  string `yaml:"name"`
+	Addr  *int   `yaml:"addr"`
+	Width *int   `yaml:"width"`
+	Mode  string `yaml:"mode"`
+	Type  string `yaml:"type"`
+	Desc  string `yaml:"desc"`
+}
+
+type IRQEntry struct {
+	CPU int   `yaml:"cpu"`
+	IRQ int   `yaml:"irq"`
+	DT  *bool `yaml:"dt?"`
+}
+
+// Hex is an unsigned integer that accepts 0x-prefixed or decimal YAML scalars.
+type Hex uint64
+
+func (h *Hex) UnmarshalYAML(n *yaml.Node) error {
+	u, err := strconv.ParseUint(n.Value, 0, 64) // base 0 -> auto 0x/decimal
+	if err != nil {
+		return fmt.Errorf("line %d: invalid address %q: %w", n.Line, n.Value, err)
+	}
+	*h = Hex(u)
+	return nil
+}
+
+// ValueKind tags how a generic/port value renders to VHDL.
+type ValueKind int
+
+const (
+	KindExpr  ValueKind = iota // verbatim VHDL identifier/expression (the default for plain scalars)
+	KindStr                    // VHDL string literal (from !str)
+	KindInt
+	KindFloat
+	KindBool
+)
+
+// Value is a generic/port value modeling verbatim-by-default: a plain YAML
+// scalar is VHDL text (KindExpr); !str is a VHDL string literal; YAML
+// numbers/bools are typed literals.
+type Value struct {
+	Kind  ValueKind
+	Text  string // KindExpr (verbatim) or KindStr (literal text)
+	Int   int64
+	Float float64
+	Bool  bool
+}
+
+func (v *Value) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Tag {
+	case "!str":
+		v.Kind, v.Text = KindStr, n.Value
+	case "!!int":
+		i, err := strconv.ParseInt(n.Value, 0, 64)
+		if err != nil {
+			return fmt.Errorf("line %d: invalid int %q: %w", n.Line, n.Value, err)
+		}
+		v.Kind, v.Int = KindInt, i
+	case "!!float":
+		f, err := strconv.ParseFloat(n.Value, 64)
+		if err != nil {
+			return fmt.Errorf("line %d: invalid float %q: %w", n.Line, n.Value, err)
+		}
+		v.Kind, v.Float = KindFloat, f
+	case "!!bool":
+		v.Kind, v.Bool = KindBool, n.Value == "true" || n.Value == "True" || n.Value == "yes"
+	default: // "!!str" and any other plain scalar -> verbatim VHDL
+		v.Kind, v.Text = KindExpr, n.Value
+	}
+	return nil
+}
+
+func (v Value) String() string {
+	switch v.Kind {
+	case KindStr:
+		return strconv.Quote(v.Text)
+	case KindInt:
+		return strconv.FormatInt(v.Int, 10)
+	case KindFloat:
+		return strconv.FormatFloat(v.Float, 'g', -1, 64)
+	case KindBool:
+		return strconv.FormatBool(v.Bool)
+	default:
+		return v.Text
+	}
+}
