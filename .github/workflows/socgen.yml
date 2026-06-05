@@ -1,0 +1,32 @@
+name: socgen
+on:
+  push:
+    paths: ['tools/socgen/**', '.github/workflows/socgen.yml']
+  pull_request:
+    paths: ['tools/socgen/**', '.github/workflows/socgen.yml']
+  workflow_dispatch:
+jobs:
+  vhdl-frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install ghdl (for round-trip re-analysis)
+        run: sudo apt-get update && sudo apt-get install -y ghdl
+      - name: Build + vet
+        run: |
+          cd tools/socgen
+          go build ./...
+          go vet ./...
+      - name: Test (tight timeout)
+        # GitHub runners are isolated, so a -timeout is the needed guard here; a
+        # runaway just fails the job rather than the dev's machine.
+        env:
+          JCORE_SOC_ROOT: ${{ github.workspace }}
+        run: |
+          cd tools/socgen
+          timeout -s KILL 150 go test ./... -timeout 90s -count=1
