@@ -115,7 +115,11 @@ func (v *Value) UnmarshalYAML(n *yaml.Node) error {
 		}
 		v.Kind, v.Float = KindFloat, f
 	case "!!bool":
-		v.Kind, v.Bool = KindBool, n.Value == "true" || n.Value == "True" || n.Value == "yes"
+		b, err := strconv.ParseBool(n.Value)
+		if err != nil {
+			return fmt.Errorf("line %d: invalid bool %q: %w", n.Line, n.Value, err)
+		}
+		v.Kind, v.Bool = KindBool, b
 	default: // "!!str" and any other plain scalar -> verbatim VHDL
 		v.Kind, v.Text = KindExpr, n.Value
 	}

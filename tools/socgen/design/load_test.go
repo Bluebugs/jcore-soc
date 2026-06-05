@@ -73,6 +73,22 @@ zero-signals: [icache0_ctrl, dcache0_ctrl]
 	}
 }
 
+func TestLoadBoolCasing(t *testing.T) {
+	d, errs := loadString(t, `devices:
+  - class: c
+    generics: { a: TRUE, b: False, c: true, d: FALSE }
+`)
+	if len(errs) != 0 {
+		t.Fatalf("load errors: %v", errs)
+	}
+	g := d.Devices[0].Generics
+	for name, want := range map[string]bool{"a": true, "b": false, "c": true, "d": false} {
+		if g[name].Kind != KindBool || g[name].Bool != want {
+			t.Errorf("%s = %+v, want KindBool %v", name, g[name], want)
+		}
+	}
+}
+
 // A function-call generic must survive as a verbatim Expr.
 func TestLoadFuncCallValue(t *testing.T) {
 	d, errs := loadString(t, `top-entities:
