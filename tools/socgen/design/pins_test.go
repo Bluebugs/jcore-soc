@@ -23,6 +23,7 @@ func TestPinsUnmarshalRuleShapes(t *testing.T) {
 pins:
   file: ../pins/x.pins
   type: pin-names
+  part: IC3
   rules:
     - { match: ".*", attrs: { iostandard: LVCMOS33 } }
     - { match: clk_100mhz, signal: true, buff: false }
@@ -38,7 +39,7 @@ pins:
       signal: ["io_p", n, "(", m, ")"]
     - { match: eth_mdc, out: 0 }
 `)
-	if ps.File != "../pins/x.pins" || ps.Type != "pin-names" {
+	if ps.File != "../pins/x.pins" || ps.Type != "pin-names" || ps.Part != "IC3" {
 		t.Fatalf("spec header: %+v", ps)
 	}
 	if len(ps.Rules) != 9 {
@@ -74,9 +75,19 @@ pins:
 	if r6.Out.Kind != SigTemplate || r6.Out.Parts[0].Lit != "dr_data_o.dqo(" {
 		t.Errorf("rule6 out: %+v", r6.Out)
 	}
+	if r6.In.Parts[0].Lit != "dr_data_i.dqi(" || r6.In.Parts[1].Sym != "n" {
+		t.Errorf("rule6 in: %+v", r6.In)
+	}
+	if r6.OutEn.Parts[0].Lit != "dr_data_o.dq_outen(" || r6.OutEn.Parts[1].Sym != "n" {
+		t.Errorf("rule6 out-en: %+v", r6.OutEn)
+	}
 	m7 := ps.Rules[7].Match
 	if len(m7.Parts) != 4 || m7.Parts[0].Lit != "io_p" || m7.Parts[1].Sym != "n" || m7.Parts[2].Lit != "_" || m7.Parts[3].Sym != "m" {
 		t.Errorf("rule7 match: %+v", m7)
+	}
+	s7 := ps.Rules[7].Signal
+	if s7.Kind != SigTemplate || len(s7.Parts) != 5 || s7.Parts[0].Lit != "io_p" || s7.Parts[1].Sym != "n" || s7.Parts[2].Lit != "(" || s7.Parts[3].Sym != "m" || s7.Parts[4].Lit != ")" {
+		t.Errorf("rule7 signal: %+v", s7)
 	}
 	if ps.Rules[8].Out.Kind != SigConst || ps.Rules[8].Out.Int != 0 {
 		t.Errorf("rule8 out: %+v", ps.Rules[8].Out)

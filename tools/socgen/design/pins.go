@@ -2,6 +2,7 @@ package design
 
 import (
 	"fmt"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -69,6 +70,12 @@ type SigSpec struct {
 	Diff  string
 }
 
+// isSymbolNode reports whether n is a parametric capture variable.
+// Convention: a bare (unquoted, Style==0) single ASCII letter in a sequence is a
+// symbol (e.g. `n` in `[mcb3_dram_a, n]`); anything quoted, multi-character, or
+// non-alpha is a literal substring. The Style==0 check is what lets a quoted
+// `"n"` be a literal, and the single-letter+alpha check is what separates `n`
+// from `_` or a digit.
 func isSymbolNode(n *yaml.Node) bool {
 	if n.Kind != yaml.ScalarNode || n.Style != 0 || len(n.Value) != 1 {
 		return false
@@ -106,12 +113,16 @@ func (s *SigSpec) UnmarshalYAML(n *yaml.Node) error {
 	case yaml.ScalarNode:
 		switch n.Tag {
 		case "!!bool":
-			s.Kind = SigTrue // signal: true
-		case "!!int":
-			s.Kind = SigConst
-			if _, err := fmt.Sscan(n.Value, &s.Int); err != nil {
-				return fmt.Errorf("line %d: invalid int signal %q", n.Line, n.Value)
+			if n.Value != "true" { // only `signal: true` is meaningful (use the pin's own net name)
+				return fmt.Errorf("line %d: signal bool must be true, got %q", n.Line, n.Value)
 			}
+			s.Kind = SigTrue
+		case "!!int":
+			i, err := strconv.ParseInt(n.Value, 0, 64)
+			if err != nil {
+				return fmt.Errorf("line %d: invalid int signal %q: %w", n.Line, n.Value, err)
+			}
+			s.Kind, s.Int = SigConst, i
 		default:
 			s.Kind, s.Name = SigName, n.Value
 		}
