@@ -106,3 +106,35 @@ func TestFoldRulesAttrsLastWins(t *testing.T) {
 		t.Errorf("signal: ref=%q diff=%q", f.signalRef, f.signalDiff)
 	}
 }
+
+func TestSplitSignal(t *testing.T) {
+	cases := map[string][2]string{ // ref -> [base, element]
+		"clk":              {"clk", ""},
+		"flash_cs(0)":      {"flash_cs", "flash_cs(0)"},
+		"dr_data_o.dqo(3)": {"dr_data_o", "dr_data_o.dqo(3)"},
+		"ddr_sd_ctrl.cke":  {"ddr_sd_ctrl", "ddr_sd_ctrl.cke"},
+	}
+	for ref, want := range cases {
+		base, elem := splitSignal(ref)
+		if base != want[0] || elem != want[1] {
+			t.Errorf("splitSignal(%q) = (%q,%q) want (%q,%q)", ref, base, elem, want[0], want[1])
+		}
+	}
+}
+
+func TestBareSignalAutoDirection(t *testing.T) {
+	// signal already driven (an out port present) -> pin consumes (dir "in")
+	driven := map[string]*Signal{"s": {Name: "s", Ports: []*SignalPortRef{{Context: Context{Kind: "device", ID: "d"}, Dir: "out"}}}}
+	if d := bareSignalDir(driven, "s"); d != "in" {
+		t.Errorf("driven signal -> pin should consume (in), got %q", d)
+	}
+	// signal undriven -> pin drives (dir "out")
+	undriven := map[string]*Signal{"s": {Name: "s", Ports: []*SignalPortRef{{Context: Context{Kind: "device", ID: "d"}, Dir: "in"}}}}
+	if d := bareSignalDir(undriven, "s"); d != "out" {
+		t.Errorf("undriven signal -> pin should drive (out), got %q", d)
+	}
+	// signal absent -> pin drives (out)
+	if d := bareSignalDir(map[string]*Signal{}, "s"); d != "out" {
+		t.Errorf("absent signal -> pin should drive (out), got %q", d)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"maps"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/j-core/jcore-soc/tools/socgen/design"
 )
@@ -126,4 +127,32 @@ func foldRules(rules []*design.PinRule, pin *design.Pin) folded {
 		}
 	}
 	return f
+}
+
+// splitSignal splits a signal ref into its base signal name and, when the ref
+// targets a bus/record element, the full element ref (else ""). The base is the
+// leading run up to the first '.' or '('.
+func splitSignal(ref string) (base, element string) {
+	i := strings.IndexAny(ref, ".(")
+	if i < 0 {
+		return ref, ""
+	}
+	return ref[:i], ref
+}
+
+// bareSignalDir infers the net-list direction of a bare-`signal:` pin port: if
+// the target signal already has a driver, the pin consumes it ("in"); otherwise
+// the pin drives it ("out"). Absent signal -> the pin drives.
+func bareSignalDir(sigs map[string]*Signal, base string) string {
+	s := sigs[base]
+	if s == nil {
+		return "out"
+	}
+	for _, p := range s.Ports {
+		switch p.Dir {
+		case "out", "buffer", "inout":
+			return "in"
+		}
+	}
+	return "out"
 }
