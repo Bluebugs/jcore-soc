@@ -146,11 +146,14 @@ func (s *SigSpec) UnmarshalYAML(n *yaml.Node) error {
 }
 
 // parsePinNames parses the simple "NAME PAD" .pins format (one pin per line; '#'
-// comments and blank lines skipped; net lower-cased).
+// comments and blank lines skipped; net lower-cased). The pad is optional (a
+// pad-less net yields Pad==""), matching the Clojure parser; any extra fields are
+// ignored. The []error result is for symmetry with parsePinList; this parser has
+// no error conditions today.
 func parsePinNames(data []byte) ([]*Pin, []error) {
 	var pins []*Pin
 	var errs []error
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		t := strings.TrimSpace(line)
 		if t == "" || strings.HasPrefix(t, "#") {
 			continue
@@ -183,10 +186,11 @@ func parsePinList(data []byte, part string) ([]*Pin, []error) {
 	lines[i] = strings.TrimPrefix(lines[i], part) // strip the part token from the first row
 	for ; i < len(lines); i++ {
 		raw := lines[i]
-		if strings.TrimSpace(raw) == "" {
+		t := strings.TrimSpace(raw)
+		if t == "" {
 			break
 		}
-		if strings.HasPrefix(strings.TrimSpace(raw), "#") || strings.Contains(raw, "*** unconnected ***") {
+		if strings.HasPrefix(t, "#") || strings.Contains(raw, "*** unconnected ***") {
 			continue
 		}
 		f := strings.Fields(raw)

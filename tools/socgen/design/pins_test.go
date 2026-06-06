@@ -137,3 +137,10 @@ IC3      A1       GND        io       GND
 		}
 	}
 }
+
+func TestParsePinListPartNotFound(t *testing.T) {
+	pins, errs := parsePinList([]byte("Part Pad Pin Dir Net\nIC9 A1 GND io GND\n"), "IC3")
+	if len(pins) != 0 || len(errs) != 1 {
+		t.Fatalf("expected one error and no pins: pins=%+v errs=%v", pins, errs)
+	}
+}
