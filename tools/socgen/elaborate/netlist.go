@@ -14,7 +14,12 @@ func Elaborate(b *board.Board) (*Resolution, []error) {
 	}
 	merge := reverseMerge(b.Design.MergeSignals)
 	// resolve each device's ports
-	for _, dev := range res.Devices {
+	// res.Devices[i] corresponds to b.Design.Devices[i] (resolveDevices iterates
+	// d.Devices in order, appending one ResolvedDevice per entry — no filtering).
+	// Use index-based association so that auto-named devices (Name=="") still get
+	// their instance port overrides applied; name-based lookup would never match
+	// because the auto-generated resolved name (e.g. "gpio0") != "" in Design.Devices.
+	for i, dev := range res.Devices {
 		rc := res.Classes[lc(dev.Class)]
 		if rc == nil {
 			continue
@@ -26,12 +31,10 @@ func Elaborate(b *board.Board) (*Resolution, []error) {
 				spec[k] = v
 			}
 		}
-		// instance port overrides from the device definition
-		for _, d := range b.Design.Devices {
-			if d.Name == dev.Name {
-				for k, v := range d.Ports {
-					spec[k] = v
-				}
+		// instance port overrides: zip by index (res.Devices[i] <-> Design.Devices[i])
+		if i < len(b.Design.Devices) {
+			for k, v := range b.Design.Devices[i].Ports {
+				spec[k] = v
 			}
 		}
 		dev.Ports = buildPorts(dev.Name, rc.Entity, spec, env, merge)

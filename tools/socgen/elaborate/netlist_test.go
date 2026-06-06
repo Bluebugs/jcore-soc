@@ -33,6 +33,54 @@ func TestElaborateNetlist(t *testing.T) {
 	}
 }
 
+func TestElaborateAutoNamedDevicePorts(t *testing.T) {
+	lib := buildLib(t,
+		`entity e is port (clk : in std_logic); end entity;`,
+		`architecture a of e is begin end architecture;`)
+	d := &design.Design{
+		DeviceClasses: map[string]*design.DeviceClass{"gpio": {Entity: "e"}},
+		// No Name -> resolveDevices will auto-generate "gpio" (single instance of class)
+		Devices: []*design.Device{{Class: "gpio", Ports: map[string]design.Value{"clk": {Kind: design.KindExpr, Text: "myclk"}}}},
+	}
+	res, errs := Elaborate(&board.Board{Design: d, Library: lib})
+	if len(errs) != 0 {
+		t.Fatalf("errs: %v", errs)
+	}
+	// the instance Ports overlay MUST be applied despite the auto-generated name
+	if res.Signals["myclk"] == nil {
+		t.Errorf("instance port override dropped for auto-named device; signals: %v", keysOf(res.Signals))
+	}
+}
+
+func keysOf(m map[string]*Signal) []string {
+	ks := []string{}
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
+}
+
+func TestZeroSignalAlreadyDriven(t *testing.T) {
+	lib := buildLib(t,
+		`entity e is port (q : out std_logic); end entity;`,
+		`architecture a of e is begin end architecture;`)
+	d := &design.Design{
+		DeviceClasses: map[string]*design.DeviceClass{"c": {Entity: "e"}},
+		Devices:       []*design.Device{{Class: "c", Name: "d0", Ports: map[string]design.Value{"q": {Kind: design.KindExpr, Text: "drv"}}}},
+		ZeroSignals:   []string{"drv"}, // already driven by d0.q (:out) -> must NOT add a zero driver
+	}
+	res, _ := Elaborate(&board.Board{Design: d, Library: lib})
+	s := res.Signals["drv"]
+	if s == nil {
+		t.Fatal("drv signal missing")
+	}
+	for _, p := range s.Ports {
+		if p.Context.Kind == "zero" {
+			t.Errorf("already-driven signal should not get a synthetic zero driver: %+v", s.Ports)
+		}
+	}
+}
+
 func TestZeroSignal(t *testing.T) {
 	lib := buildLib(t, `entity e is port (en : in std_logic); end entity;`, `architecture a of e is begin end architecture;`)
 	d := &design.Design{
