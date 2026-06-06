@@ -167,6 +167,12 @@ func resolvePins(d *design.Design, sigs map[string]*Signal) []*ResolvedPin {
 	var out []*ResolvedPin
 	for _, pin := range d.Pins.Pins {
 		f := foldRules(d.Pins.Rules, pin)
+		// Skip pins with no signal connection (matched only attr rules, or nothing):
+		// these are unmapped pads, ignored — faithful to the Clojure :ignore. (A
+		// const-only target, e.g. out: 0, also produces no leg and is deferred.)
+		if f.signalRef == "" && f.inRef == "" && f.outRef == "" && f.outEnRef == "" {
+			continue
+		}
 		rp := &ResolvedPin{Net: pin.Net, Pad: pin.Pad, Attrs: f.attrs, Diff: f.signalDiff}
 		bareDir := ""
 		if f.signalRef != "" {

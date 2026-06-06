@@ -43,7 +43,9 @@ func Elaborate(b *board.Board) (*Resolution, []error) {
 	}
 	res.TopEntities, errs = resolveEntities("top", b.Design.TopEntities, b.Library, merge, errs)
 	res.PadringEntities, errs = resolveEntities("padring", b.Design.PadringEntities, b.Library, merge, errs)
-	res.Signals, errs = gatherSignals(res, nil, errs) // zero-signals applied after pins
+	res.Signals, errs = gatherSignals(res, errs)
+	// Pins resolve AFTER gather (bare-signal direction reads existing drivers) and
+	// BEFORE zero-signals (so a pin-driven signal isn't given a synthetic driver).
 	res.Pins = resolvePins(b.Design, res.Signals)
 	applyZeroSignals(res.Signals, b.Design.ZeroSignals)
 	errs = validateSignals(res.Signals, errs)
@@ -51,9 +53,9 @@ func Elaborate(b *board.Board) (*Resolution, []error) {
 }
 
 // gatherSignals groups KindSignal ports (across devices, top entities and padring
-// entities) by global-signal name, then adds synthetic zero-signal drivers for
-// any undriven listed signal.
-func gatherSignals(res *Resolution, zero []string, errs []error) (map[string]*Signal, []error) {
+// entities) by global-signal name. Pins and zero-signals are joined afterwards by
+// Elaborate (order matters — see Elaborate).
+func gatherSignals(res *Resolution, errs []error) (map[string]*Signal, []error) {
 	sigs := map[string]*Signal{}
 	for _, dev := range res.Devices {
 		addPortsToSignals(sigs, Context{Kind: "device", ID: dev.Name}, dev.Ports)
@@ -64,7 +66,6 @@ func gatherSignals(res *Resolution, zero []string, errs []error) (map[string]*Si
 	for _, name := range sortedEntityNames(res.PadringEntities) {
 		addPortsToSignals(sigs, Context{Kind: "padring", ID: name}, res.PadringEntities[name].Ports)
 	}
-	applyZeroSignals(sigs, zero)
 	return sigs, errs
 }
 

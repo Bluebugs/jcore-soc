@@ -166,6 +166,9 @@ func TestResolvePinsJoinAndBuffer(t *testing.T) {
 	if sigs["clk"] == nil || len(sigs["clk"].Ports) != 1 || sigs["clk"].Ports[0].Dir != "out" || sigs["clk"].Ports[0].Context.Kind != "pin" {
 		t.Fatalf("clk join: %+v", sigs["clk"])
 	}
+	if sigs["clk"].Ports[0].PortName != "pin.clk.signal" {
+		t.Errorf("clk PortName = %q want pin.clk.signal", sigs["clk"].Ports[0].PortName)
+	}
 	// led -> po(0): consumer of base 'po', element recorded
 	po := sigs["po"]
 	if po == nil || len(po.Ports) != 1 || po.Ports[0].Dir != "in" || po.Ports[0].Element != "po(0)" {
