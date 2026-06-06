@@ -41,6 +41,22 @@ func TestChooseArchAmbiguousIsSoft(t *testing.T) {
 	_ = design.KindExpr // keep design import used across the file
 }
 
+func TestChooseArchCfgAndArchAgree(t *testing.T) {
+	// both configuration and architecture given and AGREEING -> resolves via config
+	lib := buildLib(t,
+		`entity e is end entity;`,
+		`architecture rtl of e is begin end architecture;`,
+		`architecture other of e is begin end architecture;`,
+		`configuration ecfg of e is for rtl end for; end configuration;`)
+	ent, arch, cfg, hardErr, errs := chooseArch(`class "e"`, "e", "rtl", "ecfg", lib, nil)
+	if len(errs) != 0 || hardErr {
+		t.Fatalf("agreeing arch+config should resolve cleanly: hardErr=%v errs=%v", hardErr, errs)
+	}
+	if ent == nil || arch != "rtl" || cfg == nil || cfg.Name != "ecfg" {
+		t.Fatalf("got ent=%v arch=%q cfg=%v", ent, arch, cfg)
+	}
+}
+
 func TestResolveEntityExplicitEntity(t *testing.T) {
 	lib := buildLib(t,
 		`entity pll is port (clk_i : in std_logic; clk_o : out std_logic); end entity;`,

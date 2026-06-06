@@ -72,6 +72,10 @@ func (r *IRQRef) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+// TopEntity is a top-level or padring entity instance. It names an entity
+// directly (no device class); Entity defaults to the map key when blank. Set at
+// most one of Architecture and Configuration — if both are given they must agree;
+// if neither is given and the entity has a single architecture, that one is used.
 type TopEntity struct {
 	Entity        string           `yaml:"entity"`
 	Configuration string           `yaml:"configuration"`

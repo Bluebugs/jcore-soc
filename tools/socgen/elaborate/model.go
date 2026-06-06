@@ -10,7 +10,7 @@ type PortKind int
 const (
 	KindSignal  PortKind = iota // connects to GlobalSignal
 	KindValue                   // tied to a constant Value
-	KindIRQ                     // {irq?: ...} — recorded; routing is P4d
+	KindIRQ                     // {irq?: ...} — recorded; routing is a later sub-milestone
 	KindDataBus                 // {data-bus: ...} — recorded; bus mux is P5
 	KindDeferred                // an unsupported map kind (bist/ring/open) — recorded only
 )
@@ -73,14 +73,16 @@ type ResolvedEntity struct {
 	Ports    []*ResolvedPort
 }
 
-// Signal is a global net that one or more device ports are connected to.
+// Signal is a global net that one or more ports (device, top/padring, or a
+// synthetic driver) are connected to.
 type Signal struct {
 	Name  string
 	Type  *ResolvedType
 	Ports []*SignalPortRef
 }
 
-// SignalPortRef is a reference from a signal to one of its device ports.
+// SignalPortRef is a reference from a signal to one of its participating ports
+// (device, top-entity, padring-entity, or synthetic driver).
 type SignalPortRef struct {
 	Context  Context
 	PortName string
@@ -88,7 +90,8 @@ type SignalPortRef struct {
 	Type     *ResolvedType
 }
 
-// Context identifies the source of a SignalPortRef (device instance or synthetic driver).
+// Context identifies the source of a SignalPortRef (device instance, top/padring
+// entity, or synthetic driver).
 type Context struct {
 	Kind string // "device" | "zero" | "top" | "padring"
 	ID   string
