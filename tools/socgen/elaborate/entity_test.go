@@ -84,3 +84,34 @@ func TestResolveEntityUnknownEntity(t *testing.T) {
 		t.Fatalf("expected one error and nil entity: re=%+v errs=%v", re, errs)
 	}
 }
+
+func TestResolveEntitiesSortedAndAccumulates(t *testing.T) {
+	lib := buildLib(t,
+		`entity a is port (clk : in std_logic); end entity;`,
+		`architecture rtl of a is begin end architecture;`,
+		`entity b is port (clk : in std_logic); end entity;`,
+		`architecture rtl of b is begin end architecture;`)
+	// empty map -> empty result, no errors
+	out, errs := resolveEntities("top", nil, lib, map[string]string{}, nil)
+	if len(out) != 0 || len(errs) != 0 {
+		t.Fatalf("empty map: out=%v errs=%v", out, errs)
+	}
+	// two entries (one resolvable, one unknown entity) -> both keyed, one error
+	ents := map[string]*design.TopEntity{
+		"x": {Entity: "a"},
+		"y": {Entity: "ghost"},
+	}
+	out, errs = resolveEntities("top", ents, lib, map[string]string{}, nil)
+	if len(out) != 2 || out["x"] == nil || out["y"] == nil {
+		t.Fatalf("expected both keys resolved: %v", out)
+	}
+	if out["x"].Entity == nil {
+		t.Errorf("x should bind entity a")
+	}
+	if out["y"].Entity != nil {
+		t.Errorf("y should have nil entity (ghost)")
+	}
+	if len(errs) != 1 {
+		t.Errorf("expected exactly one error (ghost), got %v", errs)
+	}
+}

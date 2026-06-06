@@ -3,7 +3,6 @@ package elaborate
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/j-core/jcore-soc/tools/socgen/design"
 	"github.com/j-core/jcore-soc/tools/socgen/iface"
@@ -17,10 +16,13 @@ import (
 func resolveEntity(kind, name string, te *design.TopEntity, lib *iface.Library, merge map[string]string, errs []error) (*ResolvedEntity, []error) {
 	re := &ResolvedEntity{Name: name}
 	entityName := te.Entity
-	if strings.TrimSpace(entityName) == "" {
+	if lc(entityName) == "" {
 		entityName = name
 	}
 	ctx := fmt.Sprintf("%s-entity %q", kind, name)
+	// hardErr is intentionally not checked here: unlike resolveClass (which skips
+	// register resolution on a hard bind failure), a top/padring entity has no such
+	// dependent step, and buildPorts already nil-guards on ent.
 	ent, arch, cfg, _, errs := chooseArch(ctx, entityName, te.Architecture, te.Configuration, lib, errs)
 	re.Entity, re.ArchName, re.Config = ent, arch, cfg
 	env := genericEnv(te.Generics, ent)
