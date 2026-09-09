@@ -165,12 +165,29 @@ soc_gen:
 	done
 	@echo "Done"
 
+################################################################################
+# File-list drift
+################################################################################
+
+# The ghdl-script boards (ulx3s, icesugar) keep their ghdl analyze order in a
+# hand-written targets/boards/<board>/filelist.sh instead of consuming
+# components/cpu's build_core.mk through mk_utils.mk, because they need an
+# ORDER and the Make fragments are an unordered set. check-filelists is the
+# guard on that duplication: it fails when components/cpu lists CPU VHDL a
+# board filelist has not picked up. Cheap (bash + make + perl, no ghdl, no Go),
+# so it also runs inside each board's sim.sh/synth.sh right before filelist.sh
+# is sourced -- see the header of tools/check_filelist_drift.sh.
+check-filelists:
+	@tools/check_filelist_drift.sh $(BOARDS)
+
 help:
 	@echo "To build a bitstream for a specific board, run 'make <BOARDNAME>' where <BOARDNAME> is one of"
 	@for b in $(BOARD_NAMES); do echo "  - $$b"; done
 	@echo ""
 
 	@echo "'make check' will build and run a series of GHDL simulation tests"
+	@echo "'make check-filelists' checks the ulx3s/icesugar filelist.sh against"
+	@echo "     the components/cpu file lists they duplicate (add BOARDS=<name> to narrow)"
 
 	@echo ""
 	@echo "A tool named soc_gen generates some of the VHDL that goes into the bitstreams"
@@ -185,4 +202,4 @@ clean:
 	rm -rf tap
 	for d in $(CLEAN_DIRS); do make -C "$$d" clean || exit 1; done
 
-.PHONY: all help clean force check tap build_tests tools soc_gen $(BOARD_NAMES)
+.PHONY: all help clean force check check-filelists tap build_tests tools soc_gen $(BOARD_NAMES)

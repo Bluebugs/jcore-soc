@@ -34,6 +34,13 @@ sed -i \
   targets/boards/icesugar/pad_ring.vhd
 
 # 3. file list.
+# filelist.sh below is a HAND copy of paths components/cpu owns in its
+# build_core.mk fragments. Check it here, immediately before it is sourced --
+# after soc_gen/gen_synth_sources have staged this VARIANT's
+# cpu_synth_files.list, so the check measures the same FILES array ghdl is
+# about to get -- and before ghdl, so a stale filelist is reported as the
+# missing filenames rather than as a "unit not found" deep in the analyze.
+tools/check_filelist_drift.sh icesugar
 source targets/boards/icesugar/filelist.sh   # defines FILES=( ... )
 
 # 4. synthesize to iCE40 JSON, place & route on the UP5K (SG48), pack.

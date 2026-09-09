@@ -41,6 +41,13 @@ make ulx3s TARGET=vhdl_list.txt
 #    arch pad_ring binds (clkgen(ecp5)/EHXPLLL — the real ECP5 PLL primitive
 #    yosys supplies via synth_ecp5), then the shared FILES list (which now ends
 #    with the generated devices/soc/pad_ring trio — the synthesized board top).
+# filelist.sh below is a HAND copy of paths components/cpu owns in its
+# build_core.mk fragments. Check it here, immediately before it is sourced --
+# after soc_gen/gen_synth_sources have staged this VARIANT's
+# cpu_synth_files.list, so the check measures the same FILES array ghdl is
+# about to get -- and before ghdl, so a stale filelist is reported as the
+# missing filenames rather than as a "unit not found" deep in the analyze.
+tools/check_filelist_drift.sh ulx3s
 source targets/boards/ulx3s/filelist.sh   # defines FILES=( ... )
 FILES=(output/ulx3s/config/config.vhd targets/clk_config.vhd "${FILES[@]}" \
        targets/boards/ulx3s/ulx3s_clkgen_ecp5.vhd)

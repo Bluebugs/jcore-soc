@@ -39,6 +39,13 @@ LD_LIBRARY_PATH='' perl tools/v2p < components/misc/gpio2.vhm > components/misc/
 make icesugar TARGET=soc_gen
 
 # 3. analyze the full design and elaborate the board top.
+# filelist.sh below is a HAND copy of paths components/cpu owns in its
+# build_core.mk fragments. Check it here, immediately before it is sourced --
+# after soc_gen/gen_synth_sources have staged this VARIANT's
+# cpu_synth_files.list, so the check measures the same FILES array ghdl is
+# about to get -- and before ghdl, so a stale filelist is reported as the
+# missing filenames rather than as a "unit not found" deep in the analyze.
+tools/check_filelist_drift.sh icesugar
 source targets/boards/icesugar/filelist.sh   # defines FILES=( ... )
 # SB_MAC16 behavioral model: sim-only stand-in for the iCE40 DSP that
 # mult(ice40dsp) instantiates. Synthesis (synth.sh) leaves SB_MAC16 an unbound

@@ -81,6 +81,13 @@ GHDL="ghdl -a --std=93 -fexplicit -fsynopsys --workdir=$WORK"
 # generated config + clk_config FIRST (the FILES list references work.config /
 # work.clk_config; output/ulx3s/config/config.vhd is the real generated package).
 $GHDL output/ulx3s/config/config.vhd targets/clk_config.vhd
+# filelist.sh below is a HAND copy of paths components/cpu owns in its
+# build_core.mk fragments. Check it here, immediately before it is sourced --
+# after soc_gen/gen_synth_sources have staged this VARIANT's
+# cpu_synth_files.list, so the check measures the same FILES array ghdl is
+# about to get -- and before ghdl, so a stale filelist is reported as the
+# missing filenames rather than as a "unit not found" deep in the analyze.
+tools/check_filelist_drift.sh ulx3s
 source targets/boards/ulx3s/filelist.sh   # defines FILES=( ... ) incl. the trio
 $GHDL "${FILES[@]}"
 # the ECP5 clkgen arch pad_ring binds + its sim-only EHXPLLL stand-in (analyzed

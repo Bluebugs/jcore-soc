@@ -1,0 +1,19 @@
+# CPU files that components/cpu's build_core.mk lists but this board's
+# filelist.sh deliberately does not analyze. Read by tools/check_filelist_drift.sh.
+#
+# Format: <components/cpu-relative path><whitespace><reason>
+#
+# A reason is mandatory. The bug this file's checker exists to catch (the PMU:
+# core/perf_pkg.vhd + core/perf.vhd reached build_core.mk and no board filelist)
+# happened because a piece of reasoning was done once for core/tlb.vhd and never
+# repeated. An unexplained exemption is that same hole with a rubber stamp on it.
+#
+# The checker rejects a waiver that names a file components/cpu no longer lists,
+# and a waiver for a file filelist.sh analyzes anyway, so these cannot rot
+# silently -- but nothing can tell you the *reason* went stale. Re-read it.
+
+core/shifter_seq.vhd  architecture seq of entity shifter -- the J1 area-optimised sequential shifter. All three configurations this board binds (cpu_synth_direct for j2-direct, cpu_synth_j4_rom for j4-rom/j4-dual core1, cpu_synth_j4_rom_ebr for j4-dual core0) bind `u_shifter : shifter use entity work.shifter(comb)` explicitly, so seq is never selected here; only cpu_synth_j1_config / cpu_synth_j1_dsp_config (iCESugar, which gets the file via its cpu_synth_files.list) and components/cpu's own core/cpu_config.vhd sim configuration bind it.
+
+cache/icache_modereg.vhd  Cache-mode-register device. cache_pkg.vhd declares it as a component and nothing in components/cpu instantiates it; in jcore-soc it is instantiated only by the Make-driven boards (targets/boards/{mimas_v2,turtle_1v0}/devices.vhd) and targets/byte_bus/, never by this board's soc_gen-generated devices.vhd. Add it here the moment the ULX3S design.yaml gains a cache-controller device.
+
+cache/icache_modereg_wsbu.vhd  As above -- the with-SBU variant, instantiated only by targets/byte_bus/icache_modereg_wsbu_slave_process.vhd, which the ULX3S design does not use.
